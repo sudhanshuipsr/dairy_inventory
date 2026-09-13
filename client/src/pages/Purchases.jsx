@@ -11,7 +11,6 @@ import {
 } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import BarcodeScanner from '../components/common/BarcodeScanner';
 import Modal from '../components/common/Modal';
 import Badge from '../components/common/Badge';
 import { 
@@ -31,7 +30,6 @@ import {
   ChevronDown,
   ChevronUp,
   X,
-  ScanBarcode,
   Truck,
   TrendingDown
 } from 'lucide-react';
@@ -55,10 +53,8 @@ export default function Purchases() {
   // Expandable row state
   const [expandedRowId, setExpandedRowId] = useState(null);
 
-  // Modal & Scanner State
+  // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isScannerOpen, setIsScannerOpen] = useState(false);
-  const [scanningLineIndex, setScanningLineIndex] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
   // Multi-line purchase form state
@@ -768,34 +764,19 @@ export default function Purchases() {
                   <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center">
                     {/* Product Selection */}
                     <div className="sm:col-span-5">
-                      <div className="flex items-center gap-1">
-                        <select
-                          required
-                          value={item.productId}
-                          onChange={(e) => handleLineItemChange(idx, 'productId', e.target.value)}
-                          className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0B4F9C]"
-                        >
-                          <option value="" disabled>Select Product</option>
-                          {products.map((p) => (
-                            <option key={p.id} value={p.id}>
-                              {p.name} ({p.unit})
-                            </option>
-                          ))}
-                        </select>
-
-                        {/* Scanner Trigger for this Line */}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setScanningLineIndex(idx);
-                            setIsScannerOpen(true);
-                          }}
-                          className="p-2 bg-white hover:bg-blue-50 border border-slate-200 rounded-xl text-[#0B4F9C] transition-colors shrink-0"
-                          title="Scan product barcode for this line"
-                        >
-                          <ScanBarcode className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
+                      <select
+                        required
+                        value={item.productId}
+                        onChange={(e) => handleLineItemChange(idx, 'productId', e.target.value)}
+                        className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0B4F9C]"
+                      >
+                        <option value="" disabled>Select Product</option>
+                        {products.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name} ({p.unit})
+                          </option>
+                        ))}
+                      </select>
                     </div>
 
                     {/* Cost Price */}
@@ -900,21 +881,6 @@ export default function Purchases() {
           </div>
         </form>
       </Modal>
-
-      {/* 6. Integrated Barcode Scanner Modal */}
-      {isScannerOpen && (
-        <BarcodeScanner
-          isOpen={isScannerOpen}
-          onClose={() => {
-            setIsScannerOpen(false);
-            setScanningLineIndex(null);
-          }}
-          onScan={handleScanMatched}
-          onScanSuccess={handleScanMatched}
-          title="Scan Product for Line Item"
-          subtitle="Point camera at product barcode to auto-fill this line"
-        />
-      )}
     </div>
   );
 }

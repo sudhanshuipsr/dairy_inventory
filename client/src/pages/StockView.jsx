@@ -10,7 +10,6 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import Badge from '../components/common/Badge';
 import Modal from '../components/common/Modal';
-import BarcodeScanner from '../components/common/BarcodeScanner';
 import { 
   Boxes, 
   Search, 
@@ -24,7 +23,6 @@ import {
   ShieldAlert,
   Calendar,
   Layers,
-  ScanBarcode,
   Package,
   CheckCircle2,
   AlertCircle,
@@ -60,8 +58,7 @@ const StockView = () => {
   const [newThreshold, setNewThreshold] = useState(20);
   const [savingThreshold, setSavingThreshold] = useState(false);
 
-  // Scanner & Stock Entry Modal State
-  const [isScannerOpen, setIsScannerOpen] = useState(false);
+  // Stock Entry Modal State
   const [isStockEntryOpen, setIsStockEntryOpen] = useState(false);
   const [searchingProduct, setSearchingProduct] = useState(false);
   const [submittingInward, setSubmittingInward] = useState(false);
@@ -344,16 +341,6 @@ const StockView = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {/* Scan Product Barcode Button (Opens ZXing Camera Scanner) */}
-          <button
-            onClick={() => setIsScannerOpen(true)}
-            className="px-4 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-black shadow-sm transition-all hover:scale-105 active:scale-95 flex items-center gap-2 border border-emerald-600/40"
-            title="Scan 1D barcode or QR code with mobile camera"
-          >
-            <ScanBarcode className="w-4 h-4 text-emerald-300" />
-            <span>Scan Product</span>
-          </button>
-
           {/* Manual Stock Entry Modal Button */}
           <button
             onClick={handleOpenStockEntry}
@@ -607,18 +594,8 @@ const StockView = () => {
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
                 <Tag className="w-3.5 h-3.5 text-[#0B4F9C]" />
-                <span>Scanned Barcode / Product Code</span>
+                <span>Product Code / Barcode</span>
               </label>
-
-              {/* Scan Barcode Button */}
-              <button
-                type="button"
-                onClick={() => setIsScannerOpen(true)}
-                className="px-3 py-1 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors shadow-2xs"
-              >
-                <ScanBarcode className="w-3.5 h-3.5 text-emerald-300" />
-                <span>Scan with Camera</span>
-              </button>
             </div>
 
             <div className="flex gap-2">
@@ -934,15 +911,6 @@ const StockView = () => {
           </div>
         </form>
       </Modal>
-
-      {/* 7. Modular ZXing Barcode & QR Camera Scanner */}
-      <BarcodeScanner
-        isOpen={isScannerOpen}
-        onClose={() => setIsScannerOpen(false)}
-        onScan={handleScanSuccess}
-        title="Scan Product Barcode"
-        subtitle="Align product 1D barcode or QR code with the frame"
-      />
     </div>
   );
 };

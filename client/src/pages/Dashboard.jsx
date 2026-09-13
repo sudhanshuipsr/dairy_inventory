@@ -40,7 +40,6 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   SlidersHorizontal,
-  ScanBarcode,
   ShoppingBag
 } from 'lucide-react';
 import { 
@@ -62,7 +61,6 @@ import {
   RadialBarChart,
   RadialBar
 } from 'recharts';
-import BarcodeScanner from '../components/common/BarcodeScanner';
 
 const DONUT_COLORS = ['#1e3a1e', '#2d4a2d', '#3d6b3d', '#6a9c6a', '#d97706', '#be123c', '#0B4F9C'];
 
@@ -115,7 +113,6 @@ const Dashboard = () => {
   const [sales, setSales] = useState([]);
   const [purchases, setPurchases] = useState([]);
   const [batches, setBatches] = useState([]);
-  const [isBarcodeScannerOpen, setIsBarcodeScannerOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(new Date());
@@ -204,8 +201,8 @@ const Dashboard = () => {
         const s = statsRes.value.data.stats || {};
         setStats({
           ...s,
-          totalStockUnits: liveTotalStockUnits > 0 ? liveTotalStockUnits : (s.totalStockUnits || 0),
-          totalInventoryValue: liveInventoryVal > 0 ? liveInventoryVal : (s.totalInventoryValue || 0),
+          totalStockUnits: loadedProducts.length > 0 ? liveTotalStockUnits : (s.totalStockUnits || 0),
+          totalInventoryValue: loadedProducts.length > 0 ? liveInventoryVal : (s.totalInventoryValue || 0),
           lowStockCount: liveLowStock.length,
           lowStockItems: liveLowStock.slice(0, 6),
           nearExpiryCount: s.nearExpiryCount !== undefined ? s.nearExpiryCount : liveNearExpiry.length,
@@ -399,16 +396,6 @@ const Dashboard = () => {
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-[#1e3a1e]' : ''}`} />
             <span className="hidden sm:inline">{autoRefresh ? 'Live (60s)' : 'Paused'}</span>
-          </button>
-
-          {/* Barcode Scanner Button (ZXing) */}
-          <button
-            onClick={() => setIsBarcodeScannerOpen(true)}
-            className="px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-[#1e3a1e] border border-[#a0c396]/60 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs hover:scale-102 active:scale-98"
-            title="Open ZXing Camera Barcode Scanner"
-          >
-            <ScanBarcode className="w-3.5 h-3.5 text-[#2d4a2d]" />
-            <span>Scan</span>
           </button>
 
           {/* New Purchase Quick Button */}
@@ -1307,18 +1294,6 @@ const Dashboard = () => {
           </div>
         </div>
       </motion.div>
-
-      {/* ZXing Camera Barcode / QR Scanner Modal */}
-      <BarcodeScanner
-        isOpen={isBarcodeScannerOpen}
-        onClose={() => setIsBarcodeScannerOpen(false)}
-        onScan={(code) => {
-          setIsBarcodeScannerOpen(false);
-          navigate(`/sales?code=${encodeURIComponent(code)}`);
-        }}
-        title="ZXing Barcode & QR Scanner"
-        subtitle="Point camera at product barcode to auto-detect and sell"
-      />
     </motion.div>
   );
 };

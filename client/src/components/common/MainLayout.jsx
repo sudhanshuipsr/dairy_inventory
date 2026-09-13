@@ -3,7 +3,6 @@ import { Outlet, Navigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import Sidebar from './Sidebar';
 import Navbar from './Navbar';
-import BarcodeScanner from './BarcodeScanner';
 import { useAuth } from '../../context/AuthContext';
 
 
@@ -11,13 +10,6 @@ const MainLayout = () => {
   const { user, initialLoading } = useAuth();
   const location = useLocation();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
-  const [isScannerOpen, setIsScannerOpen] = useState(false);
-
-  // Global Quick Scan handler (navigates to sales with scanned barcode)
-  const handleGlobalScan = (scannedCode) => {
-    setIsScannerOpen(false);
-    window.location.href = `/sales?code=${encodeURIComponent(scannedCode)}`;
-  };
 
   if (initialLoading) {
     return (
@@ -52,7 +44,6 @@ const MainLayout = () => {
       <div className="flex-1 md:ml-64 flex flex-col min-w-0 min-h-screen">
         <Navbar
           onOpenMobileMenu={() => setIsMobileOpen(true)}
-          onOpenScanner={() => setIsScannerOpen(true)}
         />
 
         <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
@@ -69,15 +60,6 @@ const MainLayout = () => {
           </AnimatePresence>
         </main>
       </div>
-
-      {/* 3. Global Barcode & QR Scanner powered by ZXing */}
-      <BarcodeScanner
-        isOpen={isScannerOpen}
-        onClose={() => setIsScannerOpen(false)}
-        onScan={handleGlobalScan}
-        title="ZXing Barcode & QR Scanner"
-        subtitle="Point camera at barcode to look up or add into sale/purchase"
-      />
     </div>
   );
 };

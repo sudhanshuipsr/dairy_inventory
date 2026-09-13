@@ -11,14 +11,12 @@ import {
 } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import BarcodeScanner from '../components/common/BarcodeScanner';
 import Modal from '../components/common/Modal';
 import Badge from '../components/common/Badge';
 import ReceiptModal from '../components/common/ReceiptModal';
 import { 
   ShoppingCart, 
   Plus, 
-  Camera, 
   Search, 
   Trash2, 
   Calendar, 
@@ -55,10 +53,8 @@ const Sales = () => {
   // Expandable History Rows State
   const [expandedSaleId, setExpandedSaleId] = useState(null);
 
-  // New Sale POS Modal & Scanner
+  // New Sale POS Modal
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isScannerOpen, setIsScannerOpen] = useState(false);
-  const [scanningLineIndex, setScanningLineIndex] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
   // Active Receipt Modal State
@@ -810,17 +806,6 @@ const Sales = () => {
                             </option>
                           ))}
                         </select>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setScanningLineIndex(index);
-                            setIsScannerOpen(true);
-                          }}
-                          className="p-1.5 bg-white hover:bg-emerald-50 text-emerald-700 border border-slate-200 rounded-xl transition-colors shrink-0 cursor-pointer shadow-2xs"
-                          title="Scan barcode for this line item"
-                        >
-                          <Camera className="w-3.5 h-3.5" />
-                        </button>
                       </div>
 
                       {/* Quantity Input */}
@@ -954,16 +939,7 @@ const Sales = () => {
         </form>
       </Modal>
 
-      {/* 6. Live Camera Barcode / QR Code Scanner Modal */}
-      <BarcodeScanner
-        isOpen={isScannerOpen}
-        onClose={() => setIsScannerOpen(false)}
-        onScan={handleBarcodeScanned}
-        title="Scan Product Barcode"
-        subtitle="Point camera at product barcode/QR to automatically add into POS cart"
-      />
-
-      {/* 7. Thermal Receipt Modal (Print & PDF Download) */}
+      {/* 6. Thermal Receipt Modal (Print & PDF Download) */}
       <ReceiptModal
         isOpen={isReceiptOpen}
         onClose={() => setIsReceiptOpen(false)}
