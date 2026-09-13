@@ -40,7 +40,8 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   SlidersHorizontal,
-  ScanBarcode
+  ScanBarcode,
+  ShoppingBag
 } from 'lucide-react';
 import { 
   ResponsiveContainer, 

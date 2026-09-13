@@ -25,8 +25,8 @@ class ErrorBoundary extends React.Component {
       return (
         <div className="min-h-screen bg-[#f4f8f2] flex flex-col items-center justify-center p-6 text-center font-sans">
           <div className="bg-white p-8 sm:p-10 rounded-3xl border border-[#a0c396]/40 shadow-xl max-w-lg w-full space-y-6">
-            <div className="w-16 h-16 rounded-3xl bg-[#ebf5eb] text-[#1e3a1e] flex items-center justify-center text-3xl mx-auto shadow-sm">
-              🥛
+            <div className="w-16 h-16 rounded-2xl bg-white shadow-sm border border-[#a0c396]/40 p-2 mx-auto flex items-center justify-center">
+              <img src="/logo.png" alt="Mother Dairy" className="w-full h-full object-contain" />
             </div>
 
             <div>
