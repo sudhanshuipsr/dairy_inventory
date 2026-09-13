@@ -13,37 +13,61 @@ const Navbar = ({ onOpenMobileMenu }) => {
       setIsInstalled(true);
     }
 
+    if (window.deferredPwaPrompt) {
+      setDeferredPrompt(window.deferredPwaPrompt);
+    }
+
     const handleBeforeInstall = (e) => {
       e.preventDefault();
       setDeferredPrompt(e);
+      window.deferredPwaPrompt = e;
+    };
+
+    const handlePromptAvailable = (e) => {
+      if (e.detail) {
+        setDeferredPrompt(e.detail);
+      } else if (window.deferredPwaPrompt) {
+        setDeferredPrompt(window.deferredPwaPrompt);
+      }
     };
 
     const handleAppInstalled = () => {
       setIsInstalled(true);
       setDeferredPrompt(null);
+      window.deferredPwaPrompt = null;
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstall);
+    window.addEventListener('pwa-prompt-available', handlePromptAvailable);
     window.addEventListener('appinstalled', handleAppInstalled);
+    window.addEventListener('pwa-app-installed', handleAppInstalled);
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
+      window.removeEventListener('pwa-prompt-available', handlePromptAvailable);
       window.removeEventListener('appinstalled', handleAppInstalled);
+      window.removeEventListener('pwa-app-installed', handleAppInstalled);
     };
   }, []);
 
   const handleInstallClick = async () => {
-    if (deferredPrompt) {
-      deferredPrompt.prompt();
-      const choice = await deferredPrompt.userChoice;
-      if (choice.outcome === 'accepted') {
-        setIsInstalled(true);
+    const promptEvent = deferredPrompt || window.deferredPwaPrompt;
+    if (promptEvent) {
+      try {
+        promptEvent.prompt();
+        const choice = await promptEvent.userChoice;
+        if (choice && choice.outcome === 'accepted') {
+          setIsInstalled(true);
+        }
+        setDeferredPrompt(null);
+        window.deferredPwaPrompt = null;
+        return;
+      } catch (err) {
+        console.warn('[PWA] Direct prompt error, falling back to modal:', err);
       }
-      setDeferredPrompt(null);
-    } else {
-      // Fallback instructions for iOS or already supported browsers
-      alert('To install this app on your phone:\n\n• Android: Tap browser menu (⋮) and tap "Install app" or "Add to Home Screen".\n• iPhone/iPad: Tap the Share button (⎋) in Safari and choose "Add to Home Screen".');
     }
+    // Open install modal with platform-specific instructions or 1-tap retry
+    window.dispatchEvent(new CustomEvent('open-pwa-install-modal'));
   };
 
   const today = new Date().toLocaleDateString('en-US', {

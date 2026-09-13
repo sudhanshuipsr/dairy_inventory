@@ -5,6 +5,7 @@ import { ToastProvider } from './context/ToastContext';
 
 // Common Components
 import MainLayout from './components/common/MainLayout';
+import PwaAutoInstallModal from './components/common/PwaAutoInstallModal';
 
 // Pages
 import LandingPage from './pages/LandingPage';
@@ -31,6 +32,7 @@ function App() {
     <ToastProvider>
       <AuthProvider>
         <Router>
+          <PwaAutoInstallModal />
           <Routes>
             {/* Public Routes */}
             <Route path="/" element={<LandingPage />} />

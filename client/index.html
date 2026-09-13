@@ -26,6 +26,20 @@
     <title>Mother Dairy Outlet – Fresh & Pure</title>
   </head>
   <body class="bg-[#f4f8f2] text-[#1e3a1e] font-sans antialiased selection:bg-[#1e3a1e] selection:text-[#f8f5f0]">
+    <!-- Early PWA Prompt Capture -->
+    <script>
+      window.deferredPwaPrompt = null;
+      window.addEventListener('beforeinstallprompt', function(e) {
+        e.preventDefault();
+        window.deferredPwaPrompt = e;
+        window.dispatchEvent(new CustomEvent('pwa-prompt-available', { detail: e }));
+      });
+      window.addEventListener('appinstalled', function() {
+        window.deferredPwaPrompt = null;
+        window.dispatchEvent(new CustomEvent('pwa-app-installed'));
+      });
+    </script>
+
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>

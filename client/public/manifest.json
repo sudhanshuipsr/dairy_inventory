@@ -1,7 +1,7 @@
 {
   "name": "Mother Dairy Outlet ERP",
   "short_name": "MD Outlet",
-  "description": "Mother Dairy Outlet – Fresh & Pure Dairy Inventory, 1D/2D Barcode Scanner & POS ERP",
+  "description": "Mother Dairy Outlet – Fresh & Pure Dairy Inventory, Products & POS ERP",
   "start_url": "/",
   "id": "/",
   "scope": "/",
@@ -44,9 +44,9 @@
   ],
   "shortcuts": [
     {
-      "name": "Barcode Scanner",
-      "short_name": "Scan",
-      "description": "Open Barcode Scanner for Stock Inward",
+      "name": "Stock Inventory",
+      "short_name": "Stock",
+      "description": "View and manage dairy stock",
       "url": "/stock",
       "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
     },
