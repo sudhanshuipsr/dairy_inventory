@@ -2,12 +2,21 @@ import { Sequelize } from 'sequelize';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import dns from 'dns';
 
-dotenv.config();
+// Ensure IPv4 first on dual-stack environments (prevents AWS ETIMEDOUT on Windows)
+if (dns && typeof dns.setDefaultResultOrder === 'function') {
+  dns.setDefaultResultOrder('ipv4first');
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+dotenv.config({ path: path.join(__dirname, '../.env') });
+dotenv.config(); // Also read from cwd if present
+
+
+const DATABASE_URL = process.env.DATABASE_URL || '';
 const DB_HOST = process.env.DB_HOST || '';
 const DB_PORT = Number(process.env.DB_PORT) || 3306;
 const DB_USER = process.env.DB_USER || 'root';
@@ -18,7 +27,28 @@ let sequelize;
 let activeDatabaseType = 'in-memory';
 
 try {
-  if (process.env.DB_HOST && process.env.DB_HOST !== 'localhost') {
+  if (DATABASE_URL) {
+    // 1. Cloud Neon PostgreSQL Database
+    activeDatabaseType = 'postgres';
+    sequelize = new Sequelize(DATABASE_URL, {
+      dialect: 'postgres',
+      logging: false,
+      dialectOptions: {
+        ssl: {
+          require: true,
+          rejectUnauthorized: false
+        }
+      },
+      pool: {
+        max: 10,
+        min: 0,
+        acquire: 30000,
+        idle: 10000
+      },
+      define: { timestamps: true }
+    });
+  } else if (process.env.DB_HOST && process.env.DB_HOST !== 'localhost') {
+    // 2. MySQL
     activeDatabaseType = 'mysql';
     sequelize = new Sequelize(DB_NAME, DB_USER, DB_PASSWORD, {
       host: DB_HOST,
@@ -29,6 +59,7 @@ try {
       define: { timestamps: true }
     });
   } else {
+    // 3. Local SQLite
     activeDatabaseType = 'sqlite';
     const sqliteStoragePath = process.env.DB_STORAGE || (
       process.env.VERCEL 
