@@ -31,6 +31,7 @@ import expiryRoutes from './routes/expiryRoutes.js';
 import reportRoutes from './routes/reportRoutes.js';
 import auditLogRoutes from './routes/auditLogRoutes.js';
 import feedbackRoutes from './routes/feedbackRoutes.js';
+import supplierRoutes from './routes/supplierRoutes.js';
 
 const app = express();
 
@@ -48,6 +49,7 @@ export const ensureDbConnected = async () => {
       await sequelize.sync();
       try {
         await sequelize.query("ALTER TABLE products ADD COLUMN IF NOT EXISTS barcode VARCHAR(100);");
+        await sequelize.query("ALTER TABLE purchases ADD COLUMN IF NOT EXISTS \"supplierId\" INTEGER;");
       } catch (e) {}
       await initializeDefaultUsers();
       console.log(`[Database] Connected and synced successfully (${activeDatabaseType.toUpperCase()})`);
@@ -106,6 +108,7 @@ app.use('/api/expiry', expiryRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/audit-logs', auditLogRoutes);
 app.use('/api/feedback', feedbackRoutes);
+app.use('/api/suppliers', supplierRoutes);
 
 // Admin Re-seed & Demo Endpoints
 app.post('/api/admin/seed-demo', async (req, res) => {

@@ -60,8 +60,16 @@ export const getProductQrApi = (id) => api.get(`/products/${id}/qr`);
 
 // 4. Stock APIs
 export const getStockLevelsApi = (params) => api.get('/stock', { params });
+export const getStockAlertsApi = (params) => api.get('/stock/alerts', { params });
 export const updateReorderThresholdApi = (productId, data) => api.put(`/stock/${productId}/threshold`, data);
 export const quickStockInwardApi = (data) => api.post('/stock/inward', data);
+
+// 4.1. Supplier APIs
+export const getSuppliersApi = (params) => api.get('/suppliers', { params });
+export const getSupplierByIdApi = (id) => api.get(`/suppliers/${id}`);
+export const createSupplierApi = (data) => api.post('/suppliers', data);
+export const updateSupplierApi = (id, data) => api.put(`/suppliers/${id}`, data);
+export const deleteSupplierApi = (id) => api.delete(`/suppliers/${id}`);
 
 // 5. Purchases APIs (Inward)
 export const getPurchasesApi = (params) => api.get('/purchases', { params });

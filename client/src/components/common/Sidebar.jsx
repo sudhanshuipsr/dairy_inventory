@@ -16,6 +16,7 @@ import {
   ShieldCheck, 
   Sparkles,
   QrCode,
+  Building2,
   Store,
   Download,
   Upload,
@@ -31,13 +32,14 @@ const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
   // Navigation Items Configured by Role
   const navItems = [
     { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard, role: 'all' },
+    { label: 'Product Catalog & QR', path: '/products', icon: Package, role: 'all' },
+    { label: 'Suppliers Directory', path: '/suppliers', icon: Building2, role: 'all' },
     { label: 'Live Stock', path: '/stock', icon: Boxes, role: 'all', badge: 'Auto' },
     { label: 'Purchases (Inward)', path: '/purchases', icon: ShoppingBag, role: 'all' },
     { label: 'Sales (Outward)', path: '/sales', icon: ShoppingCart, role: 'all' },
     { label: 'Milk Production', path: '/production', icon: Factory, role: 'all' },
     { label: 'Expiry Batches', path: '/expiry', icon: Clock, role: 'all', badge: '3-Day' },
     // Admin Only Navigation Links
-    { label: 'Product Catalog & QR', path: '/products', icon: Package, role: 'admin' },
     { label: 'Customer Reviews', path: '/feedback-admin', icon: Star, role: 'admin', badge: '⭐ 4.9' },
     { label: 'Data Hub (Up/Download)', path: '/data-hub', icon: Download, role: 'admin', badge: 'Hub' },
     { label: 'Financial Reports', path: '/reports', icon: FileText, role: 'admin' },

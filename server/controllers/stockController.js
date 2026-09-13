@@ -265,3 +265,25 @@ export const quickStockInward = async (req, res) => {
     res.status(500).json({ success: false, message: error.message || 'Failed to add barcode stock' });
   }
 };
+
+// @route   GET /api/stock/alerts
+// @desc    Get low-stock items and near-expiry alert metrics using stockAlertUtils
+// @access  Private (Staff & Admin)
+export const getStockAlerts = async (req, res) => {
+  try {
+    const { getStockAlertSummary } = await import('../utils/stockAlertUtils.js');
+    const alertsData = await getStockAlertSummary();
+    const formattedSummary = {
+      ...alertsData,
+      expiringSoonCount: alertsData.nearExpiryCount
+    };
+    res.status(200).json({
+      success: true,
+      summary: formattedSummary,
+      alerts: formattedSummary
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+

@@ -136,8 +136,10 @@ const Dashboard = () => {
         setPurchases([]);
       }
 
+      let loadedBatches = [];
       if (batchesRes.status === 'fulfilled' && batchesRes.value?.data?.success && Array.isArray(batchesRes.value.data.batches)) {
-        setBatches(batchesRes.value.data.batches);
+        loadedBatches = batchesRes.value.data.batches;
+        setBatches(loadedBatches);
       } else {
         setBatches([]);
       }
@@ -147,6 +149,11 @@ const Dashboard = () => {
       const liveInventoryVal = loadedProducts.reduce((sum, p) => sum + ((Number(p.currentQuantity) || 0) * (Number(p.unitPrice) || 0)), 0);
       const liveLowStock = loadedProducts.filter(p => (Number(p.currentQuantity) || 0) <= (Number(p.reorderThreshold) || 20));
 
+      const now = new Date();
+      const threeDaysLater = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
+      const liveExpired = loadedBatches.filter(b => b.status === 'expired' || new Date(b.expiryDate) < now);
+      const liveNearExpiry = loadedBatches.filter(b => b.status === 'near-expiry' || (new Date(b.expiryDate) >= now && new Date(b.expiryDate) <= threeDaysLater));
+
       if (statsRes.status === 'fulfilled' && statsRes.value?.data?.success) {
         const s = statsRes.value.data.stats || {};
         setStats({
@@ -154,7 +161,9 @@ const Dashboard = () => {
           totalStockUnits: liveTotalStockUnits > 0 ? liveTotalStockUnits : (s.totalStockUnits || 0),
           totalInventoryValue: liveInventoryVal > 0 ? liveInventoryVal : (s.totalInventoryValue || 0),
           lowStockCount: liveLowStock.length,
-          lowStockItems: liveLowStock.slice(0, 6)
+          lowStockItems: liveLowStock.slice(0, 6),
+          nearExpiryCount: s.nearExpiryCount !== undefined ? s.nearExpiryCount : liveNearExpiry.length,
+          expiredCount: s.expiredCount !== undefined ? s.expiredCount : liveExpired.length
         });
       } else {
         setStats({
@@ -162,7 +171,9 @@ const Dashboard = () => {
           totalStockUnits: liveTotalStockUnits,
           totalInventoryValue: liveInventoryVal,
           lowStockCount: liveLowStock.length,
-          lowStockItems: liveLowStock.slice(0, 6)
+          lowStockItems: liveLowStock.slice(0, 6),
+          nearExpiryCount: liveNearExpiry.length,
+          expiredCount: liveExpired.length
         });
       }
 

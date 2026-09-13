@@ -57,6 +57,10 @@ Purchase.init(
       },
       onDelete: 'SET NULL'
     },
+    supplierId: {
+      type: DataTypes.INTEGER,
+      allowNull: true
+    },
     notes: {
       type: DataTypes.TEXT,
       defaultValue: ''

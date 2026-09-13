@@ -9,12 +9,17 @@ import ProductionOutput from './ProductionOutput.js';
 import ExpiryBatch from './ExpiryBatch.js';
 import AuditLog from './AuditLog.js';
 import Feedback from './Feedback.js';
+import Supplier from './Supplier.js';
 
 // --- Associations ---
 
 // Product <-> Stock (1:1)
 Product.hasOne(Stock, { foreignKey: 'productId', as: 'stock', onDelete: 'CASCADE' });
 Stock.belongsTo(Product, { foreignKey: 'productId', as: 'product' });
+
+// Supplier <-> Purchases (1:N)
+Supplier.hasMany(Purchase, { foreignKey: 'supplierId', as: 'purchases' });
+Purchase.belongsTo(Supplier, { foreignKey: 'supplierId', as: 'supplier' });
 
 // Product <-> Purchases (1:N)
 Product.hasMany(Purchase, { foreignKey: 'productId', as: 'purchases', onDelete: 'CASCADE' });
@@ -58,8 +63,10 @@ export {
   ProductionOutput,
   ExpiryBatch,
   AuditLog,
-  Feedback
+  Feedback,
+  Supplier
 };
+
 
 export default {
   sequelize,

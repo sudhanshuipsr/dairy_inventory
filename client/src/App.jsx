@@ -17,6 +17,7 @@ import Sales from './pages/Sales';
 import Production from './pages/Production';
 import ExpiryBatches from './pages/ExpiryBatches';
 import ProductManagement from './pages/ProductManagement';
+import SupplierManagement from './pages/SupplierManagement';
 import Reports from './pages/Reports';
 import DataHub from './pages/DataHub';
 import UserManagement from './pages/UserManagement';
@@ -47,8 +48,10 @@ function App() {
                 </ProtectedRoute>
               }
             >
-              {/* Accessible by Staff & Admin */}
+              {/* Accessible by Staff & Admin (Role-guarded internally for actions) */}
               <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/products" element={<ProductManagement />} />
+              <Route path="/suppliers" element={<SupplierManagement />} />
               <Route path="/stock" element={<StockView />} />
               <Route path="/purchases" element={<Purchases />} />
               <Route path="/sales" element={<Sales />} />
@@ -56,14 +59,6 @@ function App() {
               <Route path="/expiry" element={<ExpiryBatches />} />
 
               {/* Accessible by Admin Only */}
-              <Route
-                path="/products"
-                element={
-                  <AdminRoute>
-                    <ProductManagement />
-                  </AdminRoute>
-                }
-              />
               <Route
                 path="/reports"
                 element={

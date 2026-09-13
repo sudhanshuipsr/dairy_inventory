@@ -267,11 +267,17 @@ const ProductManagement = () => {
               >
                 <div>
                   <div className="flex items-start justify-between gap-2">
-                    <span className="font-bold text-[#0B4F9C] bg-blue-50 px-2.5 py-0.5 rounded-full text-[11px] border border-blue-100 flex items-center gap-1">
-                      <span>{catMeta.icon}</span>
-                      <span>{catMeta.label || product.category}</span>
-                    </span>
-
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="font-bold text-[#0B4F9C] bg-blue-50 px-2.5 py-0.5 rounded-full text-[11px] border border-blue-100 flex items-center gap-1">
+                        <span>{catMeta.icon}</span>
+                        <span>{catMeta.label || product.category}</span>
+                      </span>
+                      {product.isLowStock && (
+                        <span className="font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full text-[10px] border border-amber-200 flex items-center gap-1 animate-pulse">
+                          <span>⚠️ Low Stock</span>
+                        </span>
+                      )}
+                    </div>
 
                   {/* QR Print Trigger */}
                   <button
@@ -298,20 +304,22 @@ const ProductManagement = () => {
 
                 <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-slate-100 text-xs">
                   <div>
+                    <span className="text-[10px] text-slate-400 font-bold block">Current Stock</span>
+                    <span className={`font-black text-sm ${product.isLowStock ? 'text-amber-600' : 'text-slate-900'}`}>
+                      {product.currentQuantity ?? 0} {product.unit}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-bold block">Reorder Buffer</span>
+                    <span className="font-bold text-slate-700">{product.reorderThreshold || 20} {product.unit}</span>
+                  </div>
+                  <div>
                     <span className="text-[10px] text-slate-400 font-bold block">Selling Price</span>
                     <span className="font-black text-slate-900 text-sm">₹{product.unitPrice} / {product.unit}</span>
                   </div>
                   <div>
                     <span className="text-[10px] text-slate-400 font-bold block">Cost Price</span>
                     <span className="font-bold text-slate-600 text-sm">₹{product.costPrice || 0}</span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-slate-400 font-bold block">Shelf Life</span>
-                    <span className="font-bold text-slate-700">{product.shelfLifeDays || 3} Days</span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-slate-400 font-bold block">Reorder Buffer</span>
-                    <span className="font-bold text-slate-700">{product.reorderThreshold || 20} {product.unit}</span>
                   </div>
                 </div>
               </div>
