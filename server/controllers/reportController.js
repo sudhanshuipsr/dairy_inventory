@@ -53,7 +53,7 @@ export const getDashboardStats = async (req, res) => {
 
     const activeStocks = allProducts.map((p) => {
       const s = stockMap.get(Number(p.id));
-      const currentQuantity = s ? Number(s.currentQuantity || 0) : Number(p.initialQuantity || 50);
+      const currentQuantity = s ? Number(s.currentQuantity || 0) : 0;
       const reorderThreshold = s ? Number(s.reorderThreshold || 20) : Number(p.reorderThreshold || 20);
       return {
         product: p,

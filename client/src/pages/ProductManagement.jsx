@@ -91,7 +91,7 @@ const ProductManagement = () => {
       unitPrice: 50,
       costPrice: 40,
       qrCode: `DAIRY-MLK-${Date.now().toString().slice(-4)}`,
-      barcode: `890164800${Math.floor(1000 + Math.random() * 9000)}`,
+      barcode: '',
       description: '',
       shelfLifeDays: 3,
       reorderThreshold: 20

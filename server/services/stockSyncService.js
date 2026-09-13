@@ -33,15 +33,9 @@ export const subtractStock = async (productId, quantity) => {
   const product = await Product.findByPk(productId);
 
   if (!stock) {
-    const initial = product ? Number(product.initialQuantity || 50) : 50;
-    const threshold = product ? Number(product.reorderThreshold || 20) : 20;
-    stock = await Stock.create({
-      productId,
-      currentQuantity: Math.max(0, initial - numQty),
-      reorderThreshold: threshold,
-      lastUpdated: new Date()
-    });
-    return stock;
+    throw new Error(
+      `No stock available for "${product?.name || 'Product'}". Available: 0, Requested: ${numQty}. Please add stock first.`
+    );
   }
 
   const current = Number(stock.currentQuantity || 0);

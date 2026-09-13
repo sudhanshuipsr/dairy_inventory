@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs';
-import { User, Product, Stock, Purchase, Sale, ExpiryBatch, Production, ProductionOutput, AuditLog, Feedback } from '../models/index.js';
+import { sequelize, User, Product, Stock, Purchase, Sale, ExpiryBatch, Production, ProductionOutput, AuditLog, Feedback } from '../models/index.js';
 
 import { addStock } from '../services/stockSyncService.js';
 
@@ -706,15 +706,19 @@ export const seedDemoProducts = async () => {
 export const clearAllDemoData = async () => {
   try {
     console.log('[Clean] Clearing all products, stock, demo transactions, and batches...');
-    await ProductionOutput.destroy({ where: {}, truncate: { cascade: true } }).catch(() => {});
-    await Production.destroy({ where: {}, truncate: { cascade: true } }).catch(() => {});
-    await ExpiryBatch.destroy({ where: {}, truncate: { cascade: true } }).catch(() => {});
-    await Sale.destroy({ where: {}, truncate: { cascade: true } }).catch(() => {});
-    await Purchase.destroy({ where: {}, truncate: { cascade: true } }).catch(() => {});
-    await Feedback.destroy({ where: {}, truncate: { cascade: true } }).catch(() => {});
-    await AuditLog.destroy({ where: {}, truncate: { cascade: true } }).catch(() => {});
-    await Stock.destroy({ where: {}, truncate: { cascade: true } }).catch(() => {});
-    await Product.destroy({ where: {}, truncate: { cascade: true } }).catch(() => {});
+    try {
+      await sequelize.query('TRUNCATE TABLE production_outputs, productions, expiry_batches, sales, purchases, feedbacks, audit_logs, stocks, products CASCADE;');
+    } catch (sqlErr) {
+      await ProductionOutput.destroy({ where: {}, truncate: { cascade: true } }).catch(() => {});
+      await Production.destroy({ where: {}, truncate: { cascade: true } }).catch(() => {});
+      await ExpiryBatch.destroy({ where: {}, truncate: { cascade: true } }).catch(() => {});
+      await Sale.destroy({ where: {}, truncate: { cascade: true } }).catch(() => {});
+      await Purchase.destroy({ where: {}, truncate: { cascade: true } }).catch(() => {});
+      await Feedback.destroy({ where: {}, truncate: { cascade: true } }).catch(() => {});
+      await AuditLog.destroy({ where: {}, truncate: { cascade: true } }).catch(() => {});
+      await Stock.destroy({ where: {}, truncate: { cascade: true } }).catch(() => {});
+      await Product.destroy({ where: {}, truncate: { cascade: true } }).catch(() => {});
+    }
 
     await initializeDefaultUsers();
     console.log('[Clean] Fresh ERP initialized with 0 products, 0 stock, and zero transactions.');

@@ -752,95 +752,123 @@ const Dashboard = () => {
         </div>
 
         {/* Product Stock Cards Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5 pt-1">
-          {displayedDashboardProducts.map((prod) => {
-            const stock = Number(prod.currentQuantity || 0);
-            const threshold = Number(prod.reorderThreshold || 20);
-            const isLow = stock <= threshold;
-            const isOut = stock <= 0;
-            const healthPercent = Math.min(100, Math.round((stock / (threshold * 3)) * 100));
-
-            return (
-              <div
-                key={prod.id || prod._id}
-                className={`p-4 rounded-2xl border transition-all duration-200 flex flex-col justify-between ${
-                  isOut
-                    ? 'bg-rose-50/50 border-rose-200'
-                    : isLow
-                    ? 'bg-amber-50/40 border-amber-200'
-                    : 'bg-white hover:bg-slate-50/70 border-slate-200/90'
-                }`}
+        {displayedDashboardProducts.length === 0 ? (
+          <div className="py-12 px-4 text-center rounded-2xl bg-slate-50 border border-dashed border-slate-200 space-y-3">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto">
+              <PackageCheck className="w-6 h-6" />
+            </div>
+            <div className="space-y-1">
+              <h4 className="font-black text-sm text-slate-800">Clean Live Inventory (0 Products)</h4>
+              <p className="text-xs text-slate-500 max-w-md mx-auto">
+                All demo products have been removed. Scan real products via Barcode Scanner (+ Inward) or add products in Catalog to start live stock tracking.
+              </p>
+            </div>
+            <div className="pt-2 flex items-center justify-center gap-3">
+              <Link
+                to="/stock"
+                className="px-4 py-2 bg-[#1e3a1e] hover:bg-[#2d4a2d] text-white rounded-xl text-xs font-bold transition-transform hover:scale-105"
               >
-                <div>
-                  <div className="flex items-start justify-between gap-2">
-                    <span className="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-md bg-slate-100 text-slate-600">
-                      {prod.category}
-                    </span>
-                    <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
-                      isOut
-                        ? 'bg-rose-100 text-rose-800'
-                        : isLow
-                        ? 'bg-amber-100 text-amber-900'
-                        : 'bg-emerald-100 text-emerald-800'
-                    }`}>
-                      {isOut ? 'Out of Stock' : isLow ? 'Low Stock' : 'In Stock'}
-                    </span>
-                  </div>
+                Go to Stock & Inward
+              </Link>
+              <Link
+                to="/products"
+                className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-xs font-bold transition-colors"
+              >
+                Manage Products
+              </Link>
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5 pt-1">
+            {displayedDashboardProducts.map((prod) => {
+              const stock = Number(prod.currentQuantity || 0);
+              const threshold = Number(prod.reorderThreshold || 20);
+              const isLow = stock <= threshold;
+              const isOut = stock <= 0;
+              const healthPercent = Math.min(100, Math.round((stock / (threshold * 3)) * 100));
 
-                  <h4 className="font-black text-xs sm:text-sm text-slate-900 mt-2 line-clamp-1" title={prod.name}>
-                    {prod.name}
-                  </h4>
-                  <div className="text-[10px] font-mono text-slate-400 mt-0.5">
-                    {prod.qrCode}
-                  </div>
-                </div>
-
-                <div className="mt-4 pt-3 border-t border-slate-100 space-y-2">
-                  <div className="flex items-baseline justify-between">
-                    <div>
-                      <div className="text-[10px] text-slate-400 font-bold uppercase">Current Stock</div>
-                      <div className={`text-base font-black font-mono ${
-                        isOut ? 'text-rose-600' : isLow ? 'text-amber-700' : 'text-slate-900'
+              return (
+                <div
+                  key={prod.id || prod._id}
+                  className={`p-4 rounded-2xl border transition-all duration-200 flex flex-col justify-between ${
+                    isOut
+                      ? 'bg-rose-50/50 border-rose-200'
+                      : isLow
+                      ? 'bg-amber-50/40 border-amber-200'
+                      : 'bg-white hover:bg-slate-50/70 border-slate-200/90'
+                  }`}
+                >
+                  <div>
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-md bg-slate-100 text-slate-600">
+                        {prod.category}
+                      </span>
+                      <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                        isOut
+                          ? 'bg-rose-100 text-rose-800'
+                          : isLow
+                          ? 'bg-amber-100 text-amber-900'
+                          : 'bg-emerald-100 text-emerald-800'
                       }`}>
-                        {stock} <span className="text-xs font-normal text-slate-500">{prod.unit}</span>
+                        {isOut ? 'Out of Stock' : isLow ? 'Low Stock' : 'In Stock'}
+                      </span>
+                    </div>
+
+                    <h4 className="font-black text-xs sm:text-sm text-slate-900 mt-2 line-clamp-1" title={prod.name}>
+                      {prod.name}
+                    </h4>
+                    <div className="text-[10px] font-mono text-slate-400 mt-0.5">
+                      {prod.qrCode}
+                    </div>
+                  </div>
+
+                  <div className="mt-4 pt-3 border-t border-slate-100 space-y-2">
+                    <div className="flex items-baseline justify-between">
+                      <div>
+                        <div className="text-[10px] text-slate-400 font-bold uppercase">Current Stock</div>
+                        <div className={`text-base font-black font-mono ${
+                          isOut ? 'text-rose-600' : isLow ? 'text-amber-700' : 'text-slate-900'
+                        }`}>
+                          {stock} <span className="text-xs font-normal text-slate-500">{prod.unit}</span>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-[10px] text-slate-400 font-bold uppercase">Price</div>
+                        <div className="text-sm font-extrabold text-slate-800 font-mono">₹{prod.unitPrice}</div>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <div className="text-[10px] text-slate-400 font-bold uppercase">Price</div>
-                      <div className="text-sm font-extrabold text-slate-800 font-mono">₹{prod.unitPrice}</div>
+
+                    {/* Stock health progress bar */}
+                    <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                      <div 
+                        className={`h-full rounded-full transition-all duration-500 ${
+                          isOut ? 'bg-rose-500' : isLow ? 'bg-amber-500' : 'bg-emerald-500'
+                        }`}
+                        style={{ width: `${Math.max(5, healthPercent)}%` }}
+                      />
+                    </div>
+
+                    {/* Quick Action: Record Sale Button */}
+                    <div className="pt-1 flex items-center gap-2">
+                      <button
+                        onClick={() => navigate(`/sales?product=${prod._id || prod.id}`)}
+                        disabled={isOut}
+                        className={`w-full py-1.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs ${
+                          isOut
+                            ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                            : 'bg-[#1e3a1e] hover:bg-[#2d4a2d] text-white hover:scale-[1.02] active:scale-[0.98]'
+                        }`}
+                      >
+                        <Zap className="w-3.5 h-3.5" />
+                        <span>Sell This Product</span>
+                      </button>
                     </div>
                   </div>
-
-                  {/* Stock health progress bar */}
-                  <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                    <div 
-                      className={`h-full rounded-full transition-all duration-500 ${
-                        isOut ? 'bg-rose-500' : isLow ? 'bg-amber-500' : 'bg-emerald-500'
-                      }`}
-                      style={{ width: `${Math.max(5, healthPercent)}%` }}
-                    />
-                  </div>
-
-                  {/* Quick Action: Record Sale Button */}
-                  <div className="pt-1 flex items-center gap-2">
-                    <button
-                      onClick={() => navigate(`/sales?product=${prod._id || prod.id}`)}
-                      disabled={isOut}
-                      className={`w-full py-1.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs ${
-                        isOut
-                          ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                          : 'bg-[#1e3a1e] hover:bg-[#2d4a2d] text-white hover:scale-[1.02] active:scale-[0.98]'
-                      }`}
-                    >
-                      <Zap className="w-3.5 h-3.5" />
-                      <span>Sell This Product</span>
-                    </button>
-                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* 6. Interactive Recharts: Weekly Trend & Category Sales */}
