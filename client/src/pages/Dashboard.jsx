@@ -249,7 +249,19 @@ const Dashboard = () => {
   const formattedStockUnits = Number(statData.totalStockUnits || 0).toLocaleString();
   const formattedInventoryVal = Number(statData.totalInventoryValue || 0).toLocaleString();
   const formattedTodaySales = Number(statData.today?.salesAmount || 0).toLocaleString();
-  const formattedTodayProfit = Number(statData.today?.grossProfit || 0).toLocaleString();
+  const formattedTodayPurchases = Number(statData.today?.purchasesAmount || 0).toLocaleString();
+  const periodNetProfit = analytics?.summary?.netProfit !== undefined 
+    ? Number(analytics.summary.netProfit) 
+    : Number(statData.today?.grossProfit || 0);
+  const formattedPeriodProfit = periodNetProfit.toLocaleString();
+
+  const recentSalesFeed = (statData.recentActivity?.sales && statData.recentActivity.sales.length > 0)
+    ? statData.recentActivity.sales
+    : (sales || []);
+
+  const recentPurchasesFeed = (statData.recentActivity?.purchases && statData.recentActivity.purchases.length > 0)
+    ? statData.recentActivity.purchases
+    : (purchases || []);
 
   return (
     <div className="space-y-6 pb-12">
@@ -618,49 +630,69 @@ const Dashboard = () => {
         </AnimatePresence>
       </div>
 
-      {/* 3. Top Metric Counter Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
-        {/* Total Stock Units */}
+      {/* 3. Executive Overview KPI Cards (6 Cards) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3.5">
+        {/* 1. Today's Sales */}
         <StatCard
-          title="Total Stock on Hand"
-          value={`${formattedStockUnits} Units`}
-          subtitle={`Valued at ₹${formattedInventoryVal}`}
-          icon={<Boxes className="w-6 h-6" />}
+          title="Today's Sales"
+          value={`₹${formattedTodaySales}`}
+          subtitle={`${statData.today?.salesCount || statData.today?.salesQuantity || 0} sales recorded`}
+          icon={<ShoppingCart className="w-5 h-5" />}
+          color="emerald"
+          onClick={() => navigate('/sales')}
+        />
+
+        {/* 2. Today's Purchases */}
+        <StatCard
+          title="Today's Purchases"
+          value={`₹${formattedTodayPurchases}`}
+          subtitle={`${statData.today?.purchasesCount || statData.today?.purchasesQuantity || 0} orders inward`}
+          icon={<Truck className="w-5 h-5" />}
+          color="blue"
+          onClick={() => navigate('/purchases')}
+        />
+
+        {/* 3. Stock Value */}
+        <StatCard
+          title="Total Stock Value"
+          value={`₹${formattedInventoryVal}`}
+          subtitle={`${formattedStockUnits} units in stock`}
+          icon={<Boxes className="w-5 h-5" />}
           color="blue"
           onClick={() => navigate('/stock')}
         />
 
-        {/* Today's Sales */}
+        {/* 4. Low-Stock Count */}
         <StatCard
-          title="Today's Sales Revenue"
-          value={`₹${formattedTodaySales}`}
-          subtitle={`${statData.today?.salesQuantity || 0} units sold today`}
-          icon={<ShoppingCart className="w-6 h-6" />}
-          color="emerald"
-          trend={{ isPositive: true, text: `+₹${formattedTodayProfit} Est. Profit` }}
-          onClick={() => navigate('/sales')}
-        />
-
-        {/* Low Stock Warning */}
-        <StatCard
-          title="Low Stock Items"
+          title="Low-Stock Alert"
           value={`${statData.lowStockCount || 0} Products`}
-          subtitle="Below reorder threshold trigger"
-          icon={<AlertTriangle className="w-6 h-6" />}
-          color={Number(statData.lowStockCount || 0) > 0 ? 'amber' : 'blue'}
+          subtitle="Below reorder threshold"
+          icon={<AlertTriangle className="w-5 h-5" />}
+          color={Number(statData.lowStockCount || 0) > 0 ? 'amber' : 'emerald'}
           trend={Number(statData.lowStockCount || 0) > 0 ? { isPositive: false, text: 'Needs Restock' } : undefined}
           onClick={() => navigate('/stock?lowStock=true')}
         />
 
-        {/* Near Expiry Risk */}
+        {/* 5. Expiring-Soon Count */}
         <StatCard
-          title="Near Expiry (< 3 Days)"
+          title="Expiring Soon"
           value={`${statData.nearExpiryCount || 0} Batches`}
-          subtitle={`${statData.expiredCount || 0} batches already expired`}
-          icon={<Clock className="w-6 h-6" />}
+          subtitle={`${statData.expiredCount || 0} batches expired`}
+          icon={<Clock className="w-5 h-5" />}
           color={Number(statData.nearExpiryCount || 0) > 0 ? 'rose' : 'emerald'}
-          trend={Number(statData.nearExpiryCount || 0) > 0 ? { isPositive: false, text: 'Action Required' } : undefined}
+          trend={Number(statData.nearExpiryCount || 0) > 0 ? { isPositive: false, text: '< 3d shelf life' } : undefined}
           onClick={() => navigate('/expiry?nearExpiryOnly=true')}
+        />
+
+        {/* 6. Period Net Profit */}
+        <StatCard
+          title="Period Net Profit"
+          value={`₹${formattedPeriodProfit}`}
+          subtitle={`${analytics?.summary?.profitMarginPct || 0}% Net Margin`}
+          icon={<TrendingUp className="w-5 h-5" />}
+          color={periodNetProfit >= 0 ? 'emerald' : 'rose'}
+          trend={{ isPositive: periodNetProfit >= 0, text: `${analytics?.summary?.profitMarginPct || 0}% margin` }}
+          onClick={() => navigate('/reports')}
         />
       </div>
 
@@ -984,7 +1016,111 @@ const Dashboard = () => {
           </div>
         </div>
       </div>
+
+      {/* 7. Recent Activity Feed (Latest Sales Receipts & Purchases Inward) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Latest Sales Outward */}
+        <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200/80 shadow-soft space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div className="flex items-center gap-2">
+              <ShoppingCart className="w-4 h-4 text-emerald-600" />
+              <h3 className="font-bold text-sm text-slate-900">Recent Sales & Counter Receipts</h3>
+            </div>
+            <Link to="/sales" className="text-xs font-bold text-emerald-700 hover:underline flex items-center gap-0.5">
+              <span>View All Sales</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+
+          <div className="divide-y divide-slate-100">
+            {recentSalesFeed && recentSalesFeed.length > 0 ? (
+              recentSalesFeed.slice(0, 5).map((sale, idx) => (
+                <div key={sale.id || sale._id || idx} className="py-3 flex items-center justify-between gap-3 hover:bg-slate-50/60 rounded-xl px-2 transition-colors">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200">
+                        {sale.receiptNumber || `REC-${String(sale.id).padStart(4, '0')}`}
+                      </span>
+                      <span className="text-xs font-bold text-slate-800 truncate">
+                        {sale.customerName || 'Walk-in Customer'}
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-slate-400 mt-1 flex items-center gap-2">
+                      <span>{sale.items?.length ? `${sale.items.length} item(s)` : `${sale.quantity || 1} units`}</span>
+                      <span>•</span>
+                      <span>{sale.date ? new Date(sale.date).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Recent'}</span>
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <div className="font-mono font-bold text-emerald-700 text-sm">
+                      ₹{Number(sale.totalAmount || 0).toLocaleString()}
+                    </div>
+                    <span className="text-[10px] text-slate-400 uppercase font-semibold">
+                      {sale.paymentMode || 'Cash'}
+                    </span>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="py-8 text-center text-xs text-slate-400">
+                No recent sales recorded yet.
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Latest Purchases Inward */}
+        <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200/80 shadow-soft space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div className="flex items-center gap-2">
+              <Truck className="w-4 h-4 text-[#0B4F9C]" />
+              <h3 className="font-bold text-sm text-slate-900">Recent Procurement & Purchases</h3>
+            </div>
+            <Link to="/purchases" className="text-xs font-bold text-[#0B4F9C] hover:underline flex items-center gap-0.5">
+              <span>View All Purchases</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+
+          <div className="divide-y divide-slate-100">
+            {recentPurchasesFeed && recentPurchasesFeed.length > 0 ? (
+              recentPurchasesFeed.slice(0, 5).map((pur, idx) => (
+                <div key={pur.id || pur._id || idx} className="py-3 flex items-center justify-between gap-3 hover:bg-slate-50/60 rounded-xl px-2 transition-colors">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded bg-blue-50 text-blue-800 border border-blue-200">
+                        {pur.invoiceNumber || `INV-${String(pur.id).padStart(4, '0')}`}
+                      </span>
+                      <span className="text-xs font-bold text-slate-800 truncate">
+                        {pur.supplierName || 'Cooperative Dairy Plant'}
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-slate-400 mt-1 flex items-center gap-2">
+                      <span>{pur.items?.length ? `${pur.items.length} item(s)` : `${pur.quantity || 1} units`}</span>
+                      <span>•</span>
+                      <span>{pur.date ? new Date(pur.date).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Recent'}</span>
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <div className="font-mono font-bold text-[#0B4F9C] text-sm">
+                      ₹{Number(pur.totalAmount || 0).toLocaleString()}
+                    </div>
+                    <span className="text-[10px] text-slate-400 font-semibold">
+                      Inward Stock
+                    </span>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="py-8 text-center text-xs text-slate-400">
+                No recent purchases recorded yet.
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
+
   );
 };
 

@@ -1,5 +1,16 @@
 import { Op } from 'sequelize';
-import { Product, Stock, Purchase, Sale, Production, ExpiryBatch, ProductionOutput, User } from '../models/index.js';
+import { 
+  Product, 
+  Stock, 
+  Purchase, 
+  Sale, 
+  Production, 
+  ExpiryBatch, 
+  ProductionOutput, 
+  User, 
+  PurchaseItem, 
+  SaleItem 
+} from '../models/index.js';
 import { addStock, subtractStock } from '../services/stockSyncService.js';
 import { logAudit } from '../middleware/auditLogger.js';
 
@@ -23,8 +34,20 @@ export const getDashboardStats = async (req, res) => {
     ] = await Promise.all([
       Stock.findAll({ include: [{ model: Product, as: 'product' }] }),
       Product.findAll({ where: { isActive: true } }),
-      Purchase.findAll({ where: { date: { [Op.gte]: today } } }),
-      Sale.findAll({ where: { date: { [Op.gte]: today } } }),
+      Purchase.findAll({ 
+        where: { date: { [Op.gte]: today } },
+        include: [
+          { model: PurchaseItem, as: 'items', include: [{ model: Product, as: 'product' }] },
+          { model: Product, as: 'product' }
+        ]
+      }),
+      Sale.findAll({ 
+        where: { date: { [Op.gte]: today } },
+        include: [
+          { model: SaleItem, as: 'items', include: [{ model: Product, as: 'product' }] },
+          { model: Product, as: 'product' }
+        ]
+      }),
       ExpiryBatch.findAll({
         where: { status: 'near-expiry' },
         include: [{ model: Product, as: 'product' }]
@@ -34,14 +57,20 @@ export const getDashboardStats = async (req, res) => {
         include: [{ model: Product, as: 'product' }]
       }),
       Sale.findAll({
-        limit: 5,
-        order: [['date', 'DESC']],
-        include: [{ model: Product, as: 'product', attributes: ['id', 'name', 'unit'] }]
+        limit: 8,
+        order: [['date', 'DESC'], ['id', 'DESC']],
+        include: [
+          { model: SaleItem, as: 'items', include: [{ model: Product, as: 'product', attributes: ['id', 'name', 'unit', 'category'] }] },
+          { model: Product, as: 'product', attributes: ['id', 'name', 'unit', 'category'] }
+        ]
       }),
       Purchase.findAll({
-        limit: 5,
-        order: [['date', 'DESC']],
-        include: [{ model: Product, as: 'product', attributes: ['id', 'name', 'unit'] }]
+        limit: 8,
+        order: [['date', 'DESC'], ['id', 'DESC']],
+        include: [
+          { model: PurchaseItem, as: 'items', include: [{ model: Product, as: 'product', attributes: ['id', 'name', 'unit', 'category'] }] },
+          { model: Product, as: 'product', attributes: ['id', 'name', 'unit', 'category'] }
+        ]
       })
     ]);
 
@@ -75,16 +104,45 @@ export const getDashboardStats = async (req, res) => {
 
     const lowStockItems = activeStocks.filter((s) => Number(s.currentQuantity || 0) <= Number(s.reorderThreshold || 20));
 
-    const todaySalesTotal = todaySales.reduce((sum, s) => sum + Number(s.totalAmount || 0), 0);
-    const todaySalesQty = todaySales.reduce((sum, s) => sum + Number(s.quantity || 0), 0);
-    const todaySalesCOGS = todaySales.reduce(
-      (sum, s) => sum + (Number(s.costPriceSnapshot || 0) * Number(s.quantity || 0)),
-      0
-    );
+    // Multi-line sales calculation for today
+    let todaySalesTotal = 0;
+    let todaySalesQty = 0;
+    let todaySalesCOGS = 0;
+
+    todaySales.forEach((s) => {
+      todaySalesTotal += Number(s.totalAmount || 0);
+      if (s.items && s.items.length > 0) {
+        s.items.forEach((item) => {
+          todaySalesQty += Number(item.quantity || 0);
+          const costPrice = Number(item.costPriceSnapshot !== undefined && item.costPriceSnapshot !== null 
+            ? item.costPriceSnapshot 
+            : (item.product?.costPrice || 0));
+          todaySalesCOGS += costPrice * Number(item.quantity || 0);
+        });
+      } else {
+        todaySalesQty += Number(s.quantity || 0);
+        const costPrice = Number(s.costPriceSnapshot !== undefined && s.costPriceSnapshot !== null 
+          ? s.costPriceSnapshot 
+          : (s.product?.costPrice || 0));
+        todaySalesCOGS += costPrice * Number(s.quantity || 0);
+      }
+    });
     const todayGrossProfit = todaySalesTotal - todaySalesCOGS;
 
-    const todayPurchasesTotal = todayPurchases.reduce((sum, p) => sum + Number(p.totalAmount || 0), 0);
-    const todayPurchasesQty = todayPurchases.reduce((sum, p) => sum + Number(p.quantity || 0), 0);
+    // Multi-line purchases calculation for today
+    let todayPurchasesTotal = 0;
+    let todayPurchasesQty = 0;
+
+    todayPurchases.forEach((p) => {
+      todayPurchasesTotal += Number(p.totalAmount || 0);
+      if (p.items && p.items.length > 0) {
+        p.items.forEach((item) => {
+          todayPurchasesQty += Number(item.quantity || 0);
+        });
+      } else {
+        todayPurchasesQty += Number(p.quantity || 0);
+      }
+    });
 
     res.status(200).json({
       success: true,
@@ -117,9 +175,12 @@ export const getDashboardStats = async (req, res) => {
         today: {
           salesAmount: todaySalesTotal,
           salesQuantity: todaySalesQty,
+          salesCount: todaySales.length,
           grossProfit: todayGrossProfit,
+          netProfit: todayGrossProfit,
           purchasesAmount: todayPurchasesTotal,
-          purchasesQuantity: todayPurchasesQty
+          purchasesQuantity: todayPurchasesQty,
+          purchasesCount: todayPurchases.length
         },
         recentActivity: {
           sales: recentSales.map((s) => {
@@ -156,6 +217,7 @@ export const getAnalyticsReport = async (req, res) => {
     const { range, startDate, endDate, productId } = req.query;
     let start = new Date();
     let end = new Date();
+    end.setHours(23, 59, 59, 999);
 
     if (range === 'today') {
       start.setHours(0, 0, 0, 0);
@@ -163,14 +225,19 @@ export const getAnalyticsReport = async (req, res) => {
       start.setDate(start.getDate() - 7);
       start.setHours(0, 0, 0, 0);
     } else if (range === 'month') {
-      start.setMonth(start.getMonth() - 1);
+      start.setDate(start.getDate() - 30);
+      start.setHours(0, 0, 0, 0);
+    } else if (range === 'thisMonth') {
+      start.setDate(1);
       start.setHours(0, 0, 0, 0);
     } else if (range === 'year') {
       start.setFullYear(start.getFullYear() - 1);
       start.setHours(0, 0, 0, 0);
     } else if (startDate && endDate) {
       start = new Date(startDate);
+      start.setHours(0, 0, 0, 0);
       end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
     } else {
       start.setDate(start.getDate() - 30);
       start.setHours(0, 0, 0, 0);
@@ -181,19 +248,38 @@ export const getAnalyticsReport = async (req, res) => {
     const saleWhere = { date: dateFilter };
     const prodWhere = { batchDate: dateFilter };
 
-    if (productId && productId !== 'all') {
-      purchaseWhere.productId = productId;
-      saleWhere.productId = productId;
-    }
-
-    const [purchases, sales, productions, discardedBatches] = await Promise.all([
+    const [purchases, sales, productions, discardedBatches, allProductsList] = await Promise.all([
       Purchase.findAll({
         where: purchaseWhere,
-        include: [{ model: Product, as: 'product', attributes: ['id', 'name', 'category', 'unit', 'unitPrice', 'costPrice'] }]
+        include: [
+          { 
+            model: PurchaseItem, 
+            as: 'items', 
+            include: [{ model: Product, as: 'product', attributes: ['id', 'name', 'category', 'unit', 'unitPrice', 'costPrice'] }] 
+          },
+          { 
+            model: Product, 
+            as: 'product', 
+            attributes: ['id', 'name', 'category', 'unit', 'unitPrice', 'costPrice'] 
+          }
+        ],
+        order: [['date', 'ASC']]
       }),
       Sale.findAll({
         where: saleWhere,
-        include: [{ model: Product, as: 'product', attributes: ['id', 'name', 'category', 'unit', 'unitPrice', 'costPrice'] }]
+        include: [
+          { 
+            model: SaleItem, 
+            as: 'items', 
+            include: [{ model: Product, as: 'product', attributes: ['id', 'name', 'category', 'unit', 'unitPrice', 'costPrice'] }] 
+          },
+          { 
+            model: Product, 
+            as: 'product', 
+            attributes: ['id', 'name', 'category', 'unit', 'unitPrice', 'costPrice'] 
+          }
+        ],
+        order: [['date', 'ASC']]
       }),
       Production.findAll({
         where: prodWhere,
@@ -202,19 +288,192 @@ export const getAnalyticsReport = async (req, res) => {
       ExpiryBatch.findAll({
         where: { status: 'discarded', updatedAt: dateFilter },
         include: [{ model: Product, as: 'product', attributes: ['id', 'name', 'unit', 'costPrice'] }]
-      })
+      }),
+      Product.findAll()
     ]);
 
-    const totalSalesAmount = sales.reduce((sum, s) => sum + Number(s.totalAmount || 0), 0);
-    const totalSalesQuantity = sales.reduce((sum, s) => sum + Number(s.quantity || 0), 0);
-    const totalCOGS = sales.reduce(
-      (sum, s) => sum + (Number(s.costPriceSnapshot || s.product?.costPrice || 0) * Number(s.quantity || 0)),
-      0
-    );
-    const grossProfit = totalSalesAmount - totalCOGS;
+    const productLookup = new Map(allProductsList.map((p) => [p.id, p]));
 
-    const totalPurchasesAmount = purchases.reduce((sum, p) => sum + Number(p.totalAmount || 0), 0);
-    const totalPurchasesQuantity = purchases.reduce((sum, p) => sum + Number(p.quantity || 0), 0);
+    // Initialize Time Series map for day-by-day trend
+    const daysMap = new Map();
+    const currentDate = new Date(start);
+    while (currentDate <= end) {
+      const dateKey = currentDate.toISOString().split('T')[0];
+      daysMap.set(dateKey, { date: dateKey, revenue: 0, sales: 0, purchases: 0, cost: 0, profit: 0 });
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    // Aggregation structures
+    let totalSalesAmount = 0;
+    let totalSalesQuantity = 0;
+    let totalCOGS = 0;
+
+    const productPerformanceMap = new Map();
+    const categoryMap = new Map();
+
+    const getProductEntry = (pId, fallbackProd) => {
+      const prod = productLookup.get(Number(pId)) || fallbackProd || {};
+      if (!productPerformanceMap.has(Number(pId))) {
+        productPerformanceMap.set(Number(pId), {
+          id: Number(pId),
+          name: prod.name || `Product #${pId}`,
+          category: prod.category || 'other',
+          unit: prod.unit || 'unit',
+          unitPrice: Number(prod.unitPrice || 0),
+          costPrice: Number(prod.costPrice || 0),
+          quantitySold: 0,
+          revenue: 0,
+          cost: 0,
+          profit: 0,
+          profitMargin: 0
+        });
+      }
+      return productPerformanceMap.get(Number(pId));
+    };
+
+    // Calculate item-level revenue, cost, profit:
+    // Profit = (sellingPrice - costPrice) * quantity
+    sales.forEach((s) => {
+      const saleDate = s.date || s.createdAt;
+      const dateKey = saleDate ? new Date(saleDate).toISOString().split('T')[0] : '';
+      const dayEntry = daysMap.get(dateKey);
+
+      let saleRevenue = 0;
+      let saleCost = 0;
+      let saleQty = 0;
+
+      if (s.items && s.items.length > 0) {
+        // Multi-line sale
+        s.items.forEach((item) => {
+          if (productId && productId !== 'all' && Number(item.productId) !== Number(productId)) {
+            return;
+          }
+          const qty = Number(item.quantity || 0);
+          const sellPrice = Number(item.sellingPrice || 0);
+          const costPrice = Number(
+            item.costPriceSnapshot !== undefined && item.costPriceSnapshot !== null
+              ? item.costPriceSnapshot
+              : (item.product?.costPrice || 0)
+          );
+          const itemRev = Number(item.subtotal || (sellPrice * qty));
+          const itemCost = costPrice * qty;
+          const itemProfit = (sellPrice - costPrice) * qty;
+
+          saleRevenue += itemRev;
+          saleCost += itemCost;
+          saleQty += qty;
+
+          // Product aggregation
+          const pEntry = getProductEntry(item.productId, item.product);
+          pEntry.quantitySold += qty;
+          pEntry.revenue += itemRev;
+          pEntry.cost += itemCost;
+          pEntry.profit += itemProfit;
+
+          // Category aggregation
+          const cat = item.product?.category || pEntry.category || 'other';
+          const catEntry = categoryMap.get(cat) || { category: cat, revenue: 0, cost: 0, profit: 0, quantity: 0 };
+          catEntry.revenue += itemRev;
+          catEntry.cost += itemCost;
+          catEntry.profit += itemProfit;
+          catEntry.quantity += qty;
+          categoryMap.set(cat, catEntry);
+        });
+
+        // If order had a discount and all products are selected, deduct discount from revenue & profit
+        if ((!productId || productId === 'all') && Number(s.discount || 0) > 0) {
+          const discount = Number(s.discount);
+          saleRevenue = Math.max(0, saleRevenue - discount);
+        }
+      } else {
+        // Legacy single-line sale
+        if (productId && productId !== 'all' && Number(s.productId) !== Number(productId)) {
+          return;
+        }
+        const qty = Number(s.quantity || 0);
+        const sellPrice = Number(s.sellingPrice || (qty > 0 ? Number(s.totalAmount) / qty : 0));
+        const costPrice = Number(
+          s.costPriceSnapshot !== undefined && s.costPriceSnapshot !== null
+            ? s.costPriceSnapshot
+            : (s.product?.costPrice || 0)
+        );
+        const itemRev = Number(s.totalAmount || (sellPrice * qty));
+        const itemCost = costPrice * qty;
+        const itemProfit = itemRev - itemCost;
+
+        saleRevenue += itemRev;
+        saleCost += itemCost;
+        saleQty += qty;
+
+        const pId = s.productId || s.product?.id;
+        if (pId) {
+          const pEntry = getProductEntry(pId, s.product);
+          pEntry.quantitySold += qty;
+          pEntry.revenue += itemRev;
+          pEntry.cost += itemCost;
+          pEntry.profit += itemProfit;
+
+          const cat = s.product?.category || pEntry.category || 'other';
+          const catEntry = categoryMap.get(cat) || { category: cat, revenue: 0, cost: 0, profit: 0, quantity: 0 };
+          catEntry.revenue += itemRev;
+          catEntry.cost += itemCost;
+          catEntry.profit += itemProfit;
+          catEntry.quantity += qty;
+          categoryMap.set(cat, catEntry);
+        }
+      }
+
+      totalSalesAmount += saleRevenue;
+      totalSalesQuantity += saleQty;
+      totalCOGS += saleCost;
+
+      if (dayEntry) {
+        dayEntry.revenue += saleRevenue;
+        dayEntry.sales += saleRevenue;
+        dayEntry.cost += saleCost;
+        dayEntry.profit += (saleRevenue - saleCost);
+      }
+    });
+
+    // Purchases aggregation
+    let totalPurchasesAmount = 0;
+    let totalPurchasesQuantity = 0;
+
+    purchases.forEach((p) => {
+      const pDate = p.date || p.createdAt;
+      const dateKey = pDate ? new Date(pDate).toISOString().split('T')[0] : '';
+      const dayEntry = daysMap.get(dateKey);
+
+      let purchaseAmt = 0;
+      let purchaseQty = 0;
+
+      if (p.items && p.items.length > 0) {
+        p.items.forEach((item) => {
+          if (productId && productId !== 'all' && Number(item.productId) !== Number(productId)) {
+            return;
+          }
+          const qty = Number(item.quantity || 0);
+          const subtotal = Number(item.subtotal || (Number(item.costPrice || 0) * qty));
+          purchaseAmt += subtotal;
+          purchaseQty += qty;
+        });
+      } else {
+        if (productId && productId !== 'all' && Number(p.productId) !== Number(productId)) {
+          return;
+        }
+        purchaseAmt += Number(p.totalAmount || 0);
+        purchaseQty += Number(p.quantity || 0);
+      }
+
+      totalPurchasesAmount += purchaseAmt;
+      totalPurchasesQuantity += purchaseQty;
+
+      if (dayEntry) {
+        dayEntry.purchases += purchaseAmt;
+      }
+    });
+
+    const grossProfit = totalSalesAmount - totalCOGS;
 
     const batchWastageLoss = discardedBatches.reduce(
       (sum, b) => sum + (Number(b.quantity || 0) * Number(b.product?.costPrice || 0)),
@@ -224,80 +483,39 @@ export const getAnalyticsReport = async (req, res) => {
     const productionWastageLitres = productions.reduce((sum, p) => sum + Number(p.inputQuantity || 0), 0);
 
     const netProfit = grossProfit - batchWastageLoss;
-    const profitMarginPct = totalSalesAmount > 0 ? Number(((netProfit / totalSalesAmount) * 100).toFixed(1)) : 0;
+    const profitMarginPct = totalSalesAmount > 0 
+      ? Number(((grossProfit / totalSalesAmount) * 100).toFixed(2)) 
+      : 0;
 
-    // Build Daily Time Series Chart Data
-    const daysMap = new Map();
-    const currentDate = new Date(start);
-    while (currentDate <= end) {
-      const dateKey = currentDate.toISOString().split('T')[0];
-      daysMap.set(dateKey, { date: dateKey, sales: 0, purchases: 0, profit: 0 });
-      currentDate.setDate(currentDate.getDate() + 1);
-    }
-
-    sales.forEach((s) => {
-      const itemDate = s.date || s.createdAt;
-      const key = itemDate ? new Date(itemDate).toISOString().split('T')[0] : '';
-      if (daysMap.has(key)) {
-        const item = daysMap.get(key);
-        item.sales += Number(s.totalAmount || 0);
-        const cogs = Number(s.costPriceSnapshot || s.product?.costPrice || 0) * Number(s.quantity || 0);
-        item.profit += (Number(s.totalAmount || 0) - cogs);
-      }
+    // Finalize product margins and rankings
+    const productList = Array.from(productPerformanceMap.values()).map((p) => {
+      const margin = p.revenue > 0 ? Number(((p.profit / p.revenue) * 100).toFixed(2)) : 0;
+      return {
+        ...p,
+        profitMargin: margin,
+        totalAmount: p.revenue,
+        totalQty: p.quantitySold
+      };
     });
 
-    purchases.forEach((p) => {
-      const itemDate = p.date || p.createdAt;
-      const key = itemDate ? new Date(itemDate).toISOString().split('T')[0] : '';
-      if (daysMap.has(key)) {
-        const item = daysMap.get(key);
-        item.purchases += Number(p.totalAmount || 0);
-      }
-    });
+    // Best & worst performing products by profit margin %
+    const productsWithSales = productList.filter((p) => p.quantitySold > 0 || p.revenue > 0);
+    const bestPerforming = [...productsWithSales].sort((a, b) => b.profitMargin - a.profitMargin).slice(0, 8);
+    const worstPerforming = [...productsWithSales].sort((a, b) => a.profitMargin - b.profitMargin).slice(0, 8);
+    const topSelling = [...productsWithSales].sort((a, b) => b.revenue - a.revenue).slice(0, 8);
+
+    // Finalize category breakdown
+    const categoryBreakdown = Array.from(categoryMap.values()).map((c) => ({
+      category: c.category,
+      amount: c.revenue,
+      revenue: c.revenue,
+      cost: c.cost,
+      profit: c.profit,
+      quantity: c.quantity,
+      profitMargin: c.revenue > 0 ? Number(((c.profit / c.revenue) * 100).toFixed(2)) : 0
+    })).sort((a, b) => b.revenue - a.revenue);
 
     const timeSeries = Array.from(daysMap.values());
-
-
-    // Category distribution
-    const allProductsList = await Product.findAll();
-    const productLookup = new Map(allProductsList.map(p => [p.id, p]));
-
-    const categoryMap = new Map();
-    sales.forEach((s) => {
-      const prod = s.product || productLookup.get(s.productId);
-      const cat = prod?.category || 'other';
-      categoryMap.set(cat, (categoryMap.get(cat) || 0) + Number(s.totalAmount || 0));
-    });
-
-    const categoryBreakdown = Array.from(categoryMap.entries()).map(([category, amount]) => ({
-      category,
-      amount
-    }));
-
-
-    const productSalesMap = new Map();
-    sales.forEach((s) => {
-      const prod = s.product || productLookup.get(s.productId);
-      if (prod) {
-        const pId = prod.id;
-        const cur = productSalesMap.get(pId) || { 
-          id: prod.id, 
-          name: prod.name, 
-          category: prod.category, 
-          unit: prod.unit, 
-          unitPrice: prod.unitPrice,
-          totalQty: 0, 
-          totalAmount: 0 
-        };
-        cur.totalQty += Number(s.quantity || 0);
-        cur.totalAmount += Number(s.totalAmount || 0);
-        productSalesMap.set(pId, cur);
-      }
-    });
-
-    const topSelling = Array.from(productSalesMap.values())
-      .sort((a, b) => b.totalAmount - a.totalAmount)
-      .slice(0, 8);
 
     res.status(200).json({
       success: true,
@@ -307,13 +525,14 @@ export const getAnalyticsReport = async (req, res) => {
         totalPurchasesAmount,
         totalPurchasesQuantity,
         totalCOGS,
+        totalCost: totalCOGS,
         grossProfit,
         batchWastageLoss,
         totalWastageUnits,
         productionWastageLitres,
         netProfit,
         profitMarginPct,
-        // Frontend compatibility aliases
+        // Compatibility aliases
         totalRevenue: totalSalesAmount,
         totalPurchases: totalPurchasesAmount,
         totalUnitsSold: totalSalesQuantity,
@@ -321,13 +540,16 @@ export const getAnalyticsReport = async (req, res) => {
       },
       timeSeries,
       categoryBreakdown,
-      topSelling
+      topSelling,
+      bestPerformingProducts: bestPerforming,
+      worstPerformingProducts: worstPerforming,
+      productPerformance: productList
     });
-
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
 
 
 // @route   GET /api/reports/export-csv
@@ -335,7 +557,87 @@ export const getAnalyticsReport = async (req, res) => {
 // @access  Private
 export const exportReportCsv = async (req, res) => {
   try {
-    const { type } = req.query; // 'products' | 'stock' | 'sales' | 'purchases' | 'expiry' | 'production' | 'template-products' | 'template-purchases' | 'template-sales'
+    const { type } = req.query; // 'products' | 'stock' | 'sales' | 'purchases' | 'expiry' | 'production' | 'profit-loss' | 'template-products' | 'template-purchases' | 'template-sales'
+
+    // Export: Profit & Loss Statement CSV
+    if (type === 'profit-loss') {
+      const sales = await Sale.findAll({
+        include: [
+          { model: SaleItem, as: 'items', include: [{ model: Product, as: 'product' }] },
+          { model: Product, as: 'product' }
+        ],
+        order: [['date', 'DESC']]
+      });
+
+      const pMap = new Map();
+      sales.forEach((s) => {
+        if (s.items && s.items.length > 0) {
+          s.items.forEach((item) => {
+            const pId = item.productId;
+            const pName = item.product?.name || `Product #${pId}`;
+            const pCat = item.product?.category || 'General';
+            const pUnit = item.product?.unit || 'unit';
+            const qty = Number(item.quantity || 0);
+            const sellPrice = Number(item.sellingPrice || 0);
+            const costPrice = Number(
+              item.costPriceSnapshot !== undefined && item.costPriceSnapshot !== null 
+                ? item.costPriceSnapshot 
+                : (item.product?.costPrice || 0)
+            );
+            const rev = Number(item.subtotal || (sellPrice * qty));
+            const cost = costPrice * qty;
+            const profit = (sellPrice - costPrice) * qty;
+
+            const existing = pMap.get(pId) || { name: pName, category: pCat, unit: pUnit, qty: 0, revenue: 0, cost: 0, profit: 0 };
+            existing.qty += qty;
+            existing.revenue += rev;
+            existing.cost += cost;
+            existing.profit += profit;
+            pMap.set(pId, existing);
+          });
+        } else if (s.productId || s.product) {
+          const pId = s.productId || s.product?.id;
+          const pName = s.product?.name || `Product #${pId}`;
+          const pCat = s.product?.category || 'General';
+          const pUnit = s.product?.unit || 'unit';
+          const qty = Number(s.quantity || 0);
+          const sellPrice = Number(s.sellingPrice || 0);
+          const costPrice = Number(s.costPriceSnapshot || s.product?.costPrice || 0);
+          const rev = Number(s.totalAmount || (sellPrice * qty));
+          const cost = costPrice * qty;
+          const profit = rev - cost;
+
+          const existing = pMap.get(pId) || { name: pName, category: pCat, unit: pUnit, qty: 0, revenue: 0, cost: 0, profit: 0 };
+          existing.qty += qty;
+          existing.revenue += rev;
+          existing.cost += cost;
+          existing.profit += profit;
+          pMap.set(pId, existing);
+        }
+      });
+
+      let csv = 'Product Name,Category,Units Sold,Unit,Gross Revenue (INR),COGS Cost (INR),Gross Profit (INR),Profit Margin (%)\n';
+      let totalRev = 0;
+      let totalCost = 0;
+      let totalProfit = 0;
+      let totalUnits = 0;
+
+      Array.from(pMap.values()).forEach((p) => {
+        const margin = p.revenue > 0 ? ((p.profit / p.revenue) * 100).toFixed(2) : '0.00';
+        totalRev += p.revenue;
+        totalCost += p.cost;
+        totalProfit += p.profit;
+        totalUnits += p.qty;
+        csv += `"${p.name}","${p.category}",${p.qty},"${p.unit}",${p.revenue.toFixed(2)},${p.cost.toFixed(2)},${p.profit.toFixed(2)},${margin}%\n`;
+      });
+
+      const overallMargin = totalRev > 0 ? ((totalProfit / totalRev) * 100).toFixed(2) : '0.00';
+      csv += `\n"TOTAL / AGGREGATE","ALL CATEGORIES",${totalUnits},"-",${totalRev.toFixed(2)},${totalCost.toFixed(2)},${totalProfit.toFixed(2)},${overallMargin}%\n`;
+
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', 'attachment; filename=mother_dairy_profit_and_loss_report.csv');
+      return res.send(csv);
+    }
 
     // Template 1: Products Import Template
     if (type === 'template-products') {
