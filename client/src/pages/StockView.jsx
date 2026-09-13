@@ -160,7 +160,6 @@ const StockView = () => {
     const today = new Date();
     const defaultExp = new Date(today.getTime() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     setMatchedProduct(null);
-    setNotFoundState(false);
     setEntryForm({
       productId: '',
       productName: '',
@@ -449,7 +448,6 @@ const StockView = () => {
                           <button
                             onClick={() => {
                               setMatchedProduct(product);
-                              setNotFoundState(false);
                               const shelfDays = Number(product.shelfLifeDays || 3);
                               const expDate = new Date(Date.now() + shelfDays * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
                               const catCode = (product.category || 'MD').toUpperCase().slice(0, 3);
