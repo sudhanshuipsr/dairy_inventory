@@ -71,7 +71,7 @@ export const login = async (req, res) => {
     }
 
     if (!user || !isMatch) {
-      return res.status(401).json({ success: false, message: 'Invalid email or password. Please use admin@dairy.com / admin123' });
+      return res.status(401).json({ success: false, message: 'Invalid email or password.' });
     }
 
     const token = generateToken(user.id);
