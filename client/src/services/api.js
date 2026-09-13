@@ -98,7 +98,14 @@ export const deleteExpiryBatchApi = (id) => api.delete(`/expiry/${id}`);
 // 9. Reports & Dashboard APIs
 export const getDashboardStatsApi = () => api.get('/reports/dashboard-stats');
 export const getAnalyticsReportApi = (params) => api.get('/reports/analytics', { params });
-export const getExportCsvUrl = (type) => `/api/reports/export-csv?type=${type || 'stock'}`;
+export const exportReportCsvApi = (type) => api.get('/reports/export-csv', {
+  params: { type: type || 'stock' },
+  responseType: 'blob'
+});
+export const getExportCsvUrl = (type) => {
+  const token = localStorage.getItem('dairy_token');
+  return `/api/reports/export-csv?type=${type || 'stock'}${token ? `&token=${encodeURIComponent(token)}` : ''}`;
+};
 export const bulkImportApi = (data) => api.post('/reports/bulk-import', data);
 export const seedDemoDataApi = () => api.post('/admin/seed-demo');
 export const clearDemoDataApi = () => api.post('/admin/clear-demo');

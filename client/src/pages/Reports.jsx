@@ -3,6 +3,7 @@ import { jsPDF } from 'jspdf';
 import { 
   getAnalyticsReportApi, 
   getProductsApi, 
+  exportReportCsvApi,
   getExportCsvUrl 
 } from '../services/api';
 import { FALLBACK_ANALYTICS_REPORT, FALLBACK_PRODUCTS } from '../utils/demoFallbackData';
@@ -102,10 +103,283 @@ const Reports = () => {
     }
   };
 
-  const handleDownloadCsv = (type) => {
-    const url = getExportCsvUrl(type);
-    window.open(url, '_blank');
-    addToast(`Exporting ${type} CSV report...`, 'info');
+  const summary = analytics?.summary || {
+    totalSalesAmount: 0,
+    totalSalesQuantity: 0,
+    totalPurchasesAmount: 0,
+    totalPurchasesQuantity: 0,
+    totalCOGS: 0,
+    totalCost: 0,
+    grossProfit: 0,
+    batchWastageLoss: 0,
+    netProfit: 0,
+    profitMarginPct: 0
+  };
+
+  // Robust CSV Download with JWT Blob and fallback
+  const handleDownloadCsv = async (type) => {
+    try {
+      addToast(`Preparing ${type.toUpperCase()} CSV report...`, 'info');
+      const res = await exportReportCsvApi(type);
+      
+      const blob = new Blob([res.data], { type: 'text/csv;charset=utf-8;' });
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = `mother_dairy_${type}_${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(downloadUrl);
+      addToast(`${type.toUpperCase()} CSV exported successfully!`, 'success');
+    } catch (err) {
+      console.warn('API CSV export error, attempting direct URL fallback:', err);
+      try {
+        const url = getExportCsvUrl(type);
+        const a = document.createElement('a');
+        a.href = url;
+        a.target = '_blank';
+        a.download = `mother_dairy_${type}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        addToast(`Exported ${type} CSV!`, 'success');
+      } catch (fallbackErr) {
+        addToast('Failed to export CSV: ' + (err.message || 'Error occurred'), 'error');
+      }
+    }
+  };
+
+  // Dedicated A4 Print Report using isolated hidden iframe
+  const handlePrintReport = () => {
+    try {
+      const existing = document.getElementById('report-print-frame');
+      if (existing) existing.remove();
+
+      const iframe = document.createElement('iframe');
+      iframe.id = 'report-print-frame';
+      iframe.style.position = 'fixed';
+      iframe.style.right = '0';
+      iframe.style.bottom = '0';
+      iframe.style.width = '0';
+      iframe.style.height = '0';
+      iframe.style.border = '0';
+      iframe.style.visibility = 'hidden';
+      document.body.appendChild(iframe);
+
+      const periodLabel = range === 'custom' 
+        ? `${startDate || 'Start'} to ${endDate || 'End'}` 
+        : range.toUpperCase();
+
+      const kpis = [
+        { label: 'Gross Revenue', val: `Rs. ${Number(summary.totalSalesAmount || 0).toLocaleString()}` },
+        { label: 'COGS (Cost of Goods)', val: `Rs. ${Number(summary.totalCOGS || summary.totalCost || 0).toLocaleString()}` },
+        { label: 'Gross Profit', val: `Rs. ${Number(summary.grossProfit || 0).toLocaleString()}` },
+        { label: 'Procurement Inward', val: `Rs. ${Number(summary.totalPurchasesAmount || 0).toLocaleString()}` },
+        { label: 'Net Profit', val: `Rs. ${Number(summary.netProfit || 0).toLocaleString()}` },
+        { label: 'Profit Margin', val: `${summary.profitMarginPct || 0}%` },
+      ];
+
+      const categoryRows = (analytics?.categoryBreakdown || []).map(cat => `
+        <tr>
+          <td style="padding: 6px 8px; border-bottom: 1px solid #e2e8f0; font-weight: 700;">${String(cat.category || 'General').toUpperCase()}</td>
+          <td style="padding: 6px 8px; border-bottom: 1px solid #e2e8f0; text-align: right;">Rs. ${Number(cat.revenue || cat.amount || 0).toLocaleString()}</td>
+          <td style="padding: 6px 8px; border-bottom: 1px solid #e2e8f0; text-align: right;">Rs. ${Number(cat.cost || 0).toLocaleString()}</td>
+          <td style="padding: 6px 8px; border-bottom: 1px solid #e2e8f0; text-align: right; font-weight: 700; color: #166534;">Rs. ${Number(cat.profit || 0).toLocaleString()}</td>
+          <td style="padding: 6px 8px; border-bottom: 1px solid #e2e8f0; text-align: right; font-weight: 700;">${cat.profitMargin || 0}%</td>
+        </tr>
+      `).join('');
+
+      const sampleLeaderboard = getLeaderboardList();
+      const productRows = (sampleLeaderboard || []).slice(0, 15).map((p, idx) => `
+        <tr>
+          <td style="padding: 5px 8px; border-bottom: 1px solid #e2e8f0; text-align: center; color: #64748b;">#${idx + 1}</td>
+          <td style="padding: 5px 8px; border-bottom: 1px solid #e2e8f0; font-weight: 600;">${p.name}</td>
+          <td style="padding: 5px 8px; border-bottom: 1px solid #e2e8f0; text-transform: uppercase; font-size: 9.5px;">${p.category}</td>
+          <td style="padding: 5px 8px; border-bottom: 1px solid #e2e8f0; text-align: right;">${p.quantitySold || p.totalQty || 0} ${p.unit || ''}</td>
+          <td style="padding: 5px 8px; border-bottom: 1px solid #e2e8f0; text-align: right;">Rs. ${Number(p.revenue || p.totalAmount || 0).toLocaleString()}</td>
+          <td style="padding: 5px 8px; border-bottom: 1px solid #e2e8f0; text-align: right; font-weight: 700; color: #166534;">Rs. ${Number(p.profit || 0).toLocaleString()}</td>
+          <td style="padding: 5px 8px; border-bottom: 1px solid #e2e8f0; text-align: right; font-weight: 700;">${p.profitMargin || 0}%</td>
+        </tr>
+      `).join('');
+
+      const doc = iframe.contentWindow || iframe.contentDocument;
+      const targetDoc = doc.document || doc;
+
+      targetDoc.open();
+      targetDoc.write(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="utf-8">
+            <title>Mother Dairy - Profit & Loss Financial Report</title>
+            <style>
+              @page {
+                size: A4 portrait;
+                margin: 8mm 10mm;
+              }
+              * {
+                box-sizing: border-box;
+                margin: 0;
+                padding: 0;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+              }
+              body {
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+                color: #0f172a;
+                background: #ffffff;
+                padding: 12px;
+                font-size: 11px;
+                line-height: 1.4;
+              }
+              .banner {
+                background: #1e3a1e;
+                color: #ffffff;
+                padding: 12px 16px;
+                border-radius: 8px;
+                text-align: center;
+                margin-bottom: 14px;
+              }
+              .banner h1 {
+                font-size: 17px;
+                font-weight: 800;
+                letter-spacing: 0.5px;
+              }
+              .banner p {
+                font-size: 10px;
+                color: #cde4cd;
+                margin-top: 3px;
+              }
+              .section-heading {
+                font-size: 11.5px;
+                font-weight: 800;
+                color: #1e3a1e;
+                text-transform: uppercase;
+                margin: 12px 0 6px;
+                border-bottom: 2px solid #a0c396;
+                padding-bottom: 3px;
+              }
+              .kpi-row {
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                gap: 8px;
+                margin-bottom: 12px;
+              }
+              .kpi-cell {
+                background: #f4f8f2;
+                border: 1px solid #d1e7cf;
+                border-radius: 6px;
+                padding: 8px 10px;
+              }
+              .kpi-lbl {
+                font-size: 9px;
+                color: #475569;
+                text-transform: uppercase;
+                font-weight: 600;
+              }
+              .kpi-num {
+                font-size: 13.5px;
+                font-weight: 800;
+                color: #1e3a1e;
+                margin-top: 2px;
+              }
+              table {
+                width: 100%;
+                border-collapse: collapse;
+                margin-bottom: 12px;
+                font-size: 10px;
+              }
+              th {
+                background: #ebf5eb;
+                color: #1e3a1e;
+                text-transform: uppercase;
+                font-size: 9px;
+                font-weight: 800;
+                padding: 6px 8px;
+                border-bottom: 2px solid #a0c396;
+              }
+              .footer {
+                text-align: center;
+                font-size: 8.5px;
+                color: #94a3b8;
+                margin-top: 16px;
+                border-top: 1px solid #e2e8f0;
+                padding-top: 6px;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="banner">
+              <h1>MOTHER DAIRY — PROFIT & LOSS STATEMENT</h1>
+              <p>Period: ${periodLabel} • Generated: ${new Date().toLocaleString()}</p>
+            </div>
+
+            <div class="section-heading">1. Financial Performance Summary</div>
+            <div class="kpi-row">
+              ${kpis.map(k => `
+                <div class="kpi-cell">
+                  <div class="kpi-lbl">${k.label}</div>
+                  <div class="kpi-num">${k.val}</div>
+                </div>
+              `).join('')}
+            </div>
+
+            <div class="section-heading">2. Category Turnover & Margin</div>
+            <table>
+              <thead>
+                <tr>
+                  <th style="text-align: left;">Category</th>
+                  <th style="text-align: right;">Revenue</th>
+                  <th style="text-align: right;">Cost</th>
+                  <th style="text-align: right;">Profit</th>
+                  <th style="text-align: right;">Margin %</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${categoryRows || '<tr><td colspan="5" style="text-align:center; padding:8px;">No category records</td></tr>'}
+              </tbody>
+            </table>
+
+            <div class="section-heading">3. Product Profitability Performance</div>
+            <table>
+              <thead>
+                <tr>
+                  <th style="width: 30px; text-align: center;">#</th>
+                  <th style="text-align: left;">Product Name</th>
+                  <th style="text-align: left;">Category</th>
+                  <th style="text-align: right;">Qty Sold</th>
+                  <th style="text-align: right;">Revenue</th>
+                  <th style="text-align: right;">Gross Profit</th>
+                  <th style="text-align: right;">Margin %</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${productRows || '<tr><td colspan="7" style="text-align:center; padding:8px;">No product records</td></tr>'}
+              </tbody>
+            </table>
+
+            <div class="footer">
+              Mother Dairy Inventory & POS System — Official Financial Ledger & P&L Statement
+            </div>
+          </body>
+        </html>
+      `);
+      targetDoc.close();
+
+      setTimeout(() => {
+        try {
+          iframe.contentWindow.focus();
+          iframe.contentWindow.print();
+        } catch (err) {
+          console.warn('Iframe print fallback:', err);
+          window.print();
+        }
+      }, 300);
+    } catch (e) {
+      console.error('Print statement error:', e);
+      window.print();
+    }
   };
 
   // Generate and Download PDF Report using jsPDF
@@ -144,7 +418,7 @@ const Reports = () => {
       y += 5;
       const kpis = [
         { label: 'Gross Revenue', val: `Rs. ${Number(summary.totalSalesAmount || 0).toLocaleString()}` },
-        { label: 'Total COGS (Cost)', val: `Rs. ${Number(summary.totalCOGS || 0).toLocaleString()}` },
+        { label: 'Total COGS (Cost)', val: `Rs. ${Number(summary.totalCOGS || summary.totalCost || 0).toLocaleString()}` },
         { label: 'Gross Profit', val: `Rs. ${Number(summary.grossProfit || 0).toLocaleString()}` },
         { label: 'Procurement Inward', val: `Rs. ${Number(summary.totalPurchasesAmount || 0).toLocaleString()}` },
         { label: 'Net Profit', val: `Rs. ${Number(summary.netProfit || 0).toLocaleString()}` },
@@ -256,19 +530,6 @@ const Reports = () => {
     }
   };
 
-  const summary = analytics?.summary || {
-    totalSalesAmount: 0,
-    totalSalesQuantity: 0,
-    totalPurchasesAmount: 0,
-    totalPurchasesQuantity: 0,
-    totalCOGS: 0,
-    totalCost: 0,
-    grossProfit: 0,
-    batchWastageLoss: 0,
-    netProfit: 0,
-    profitMarginPct: 0
-  };
-
   // Select which product list to display based on active tab
   const getLeaderboardList = () => {
     if (activeLeaderboardTab === 'best') {
@@ -299,20 +560,21 @@ const Reports = () => {
           </p>
         </div>
 
-        {/* Export Buttons: CSVs & PDF */}
+        {/* Export Buttons: CSVs, Print & PDF */}
         <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => handleDownloadCsv('profit-loss')}
-            className="px-3.5 py-2 bg-[#f4f8f2] hover:bg-[#ebf5eb] text-[#1e3a1e] border border-[#a0c396]/40 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
+            className="px-3 py-2 bg-[#f4f8f2] hover:bg-[#ebf5eb] text-[#1e3a1e] border border-[#a0c396]/40 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
             title="Download full Profit & Loss statement in CSV"
           >
             <Download className="w-3.5 h-3.5 text-[#3d6b3d]" />
-            <span>P&L Ledger (CSV)</span>
+            <span>P&L (CSV)</span>
           </button>
 
           <button
             onClick={() => handleDownloadCsv('sales')}
             className="px-3 py-2 bg-[#f4f8f2] hover:bg-[#ebf5eb] text-[#1e3a1e] border border-[#a0c396]/40 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
+            title="Export Sales Ledger CSV"
           >
             <Download className="w-3.5 h-3.5 text-[#1e3a1e]" />
             <span>Sales (CSV)</span>
@@ -321,17 +583,28 @@ const Reports = () => {
           <button
             onClick={() => handleDownloadCsv('purchases')}
             className="px-3 py-2 bg-[#f4f8f2] hover:bg-[#ebf5eb] text-[#1e3a1e] border border-[#a0c396]/40 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
+            title="Export Purchases Inward CSV"
           >
             <Download className="w-3.5 h-3.5 text-[#1e3a1e]" />
             <span>Purchases (CSV)</span>
           </button>
 
           <button
-            onClick={handleDownloadPdf}
-            className="px-4 py-2 bg-[#1e3a1e] hover:bg-[#2d4a2d] text-white rounded-xl text-xs font-bold shadow-md shadow-[#1e3a1e]/15 transition-all flex items-center gap-2 cursor-pointer"
+            onClick={handlePrintReport}
+            className="px-3.5 py-2 bg-[#f4f8f2] hover:bg-[#ebf5eb] text-[#1e3a1e] border border-[#a0c396]/60 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs hover:scale-102 active:scale-98"
+            title="Print formatted A4 financial statement"
           >
-            <Printer className="w-3.5 h-3.5 text-[#9bc09b]" />
-            <span>Export P&L Report (PDF)</span>
+            <Printer className="w-3.5 h-3.5 text-[#2d4a2d]" />
+            <span>Print Report</span>
+          </button>
+
+          <button
+            onClick={handleDownloadPdf}
+            className="px-3.5 py-2 bg-[#1e3a1e] hover:bg-[#2d4a2d] text-white rounded-xl text-xs font-bold shadow-md shadow-[#1e3a1e]/15 transition-all flex items-center gap-1.5 cursor-pointer hover:scale-102 active:scale-98"
+            title="Download formatted A4 PDF statement"
+          >
+            <Download className="w-3.5 h-3.5 text-[#9bc09b]" />
+            <span>Download PDF</span>
           </button>
         </div>
       </div>

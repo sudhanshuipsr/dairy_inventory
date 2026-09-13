@@ -845,12 +845,29 @@ export const exportReportCsv = async (req, res) => {
     // Export: Sales History
     if (type === 'sales') {
       const sales = await Sale.findAll({
-        include: [{ model: Product, as: 'product', attributes: ['id', 'name', 'category', 'unit'] }],
+        include: [
+          { model: SaleItem, as: 'items', include: [{ model: Product, as: 'product' }] },
+          { model: Product, as: 'product', attributes: ['id', 'name', 'category', 'unit'] }
+        ],
         order: [['date', 'DESC']]
       });
-      let csv = 'Sale ID,Date,Product Name,Category,Quantity,Unit,Selling Price,Total Amount,Customer Name,Payment Mode,Route / POS\n';
+      let csv = 'Sale ID,Receipt No,Date,Product Name,Category,Quantity,Unit,Selling Price (INR),Line Total (INR),Total Invoice (INR),Customer Name,Payment Mode,Route / POS\n';
       sales.forEach((s) => {
-        csv += `"${s.id}","${new Date(s.date).toISOString().split('T')[0]}","${s.product?.name || ''}","${s.product?.category || ''}",${s.quantity},"${s.product?.unit || ''}",${s.sellingPrice},${s.totalAmount},"${s.customerName}","${s.paymentMode}","${s.outletOrRoute}"\n`;
+        const dateStr = s.date ? new Date(s.date).toISOString().split('T')[0] : '';
+        const receiptNo = s.receiptNumber || `REC-${s.id}`;
+        if (s.items && s.items.length > 0) {
+          s.items.forEach((it) => {
+            const pName = it.product?.name || 'Dairy Item';
+            const pCat = it.product?.category || 'General';
+            const pUnit = it.product?.unit || 'unit';
+            const qty = Number(it.quantity || 0);
+            const rate = Number(it.sellingPrice || 0);
+            const lineTot = Number(it.subtotal || qty * rate);
+            csv += `"${s.id}","${receiptNo}","${dateStr}","${pName}","${pCat}",${qty},"${pUnit}",${rate.toFixed(2)},${lineTot.toFixed(2)},${Number(s.totalAmount || 0).toFixed(2)},"${s.customerName || ''}","${s.paymentMode || 'Cash'}","${s.outletOrRoute || 'Counter'}"\n`;
+          });
+        } else {
+          csv += `"${s.id}","${receiptNo}","${dateStr}","${s.product?.name || 'Dairy Item'}","${s.product?.category || 'General'}",${s.quantity || 1},"${s.product?.unit || 'unit'}",${Number(s.sellingPrice || s.totalAmount || 0).toFixed(2)},${Number(s.totalAmount || 0).toFixed(2)},${Number(s.totalAmount || 0).toFixed(2)},"${s.customerName || ''}","${s.paymentMode || 'Cash'}","${s.outletOrRoute || 'Counter'}"\n`;
+        }
       });
       res.setHeader('Content-Type', 'text/csv');
       res.setHeader('Content-Disposition', 'attachment; filename=mother_dairy_sales_report.csv');
@@ -860,12 +877,29 @@ export const exportReportCsv = async (req, res) => {
     // Export: Purchases Inward
     if (type === 'purchases') {
       const purchases = await Purchase.findAll({
-        include: [{ model: Product, as: 'product', attributes: ['id', 'name', 'category', 'unit'] }],
+        include: [
+          { model: PurchaseItem, as: 'items', include: [{ model: Product, as: 'product' }] },
+          { model: Product, as: 'product', attributes: ['id', 'name', 'category', 'unit'] }
+        ],
         order: [['date', 'DESC']]
       });
-      let csv = 'Purchase ID,Date,Product Name,Category,Quantity,Unit,Cost Price,Total Amount,Supplier Name,Invoice Number\n';
+      let csv = 'Purchase ID,Invoice No,Date,Product Name,Category,Quantity,Unit,Cost Price (INR),Line Total (INR),Total Invoice (INR),Supplier Name\n';
       purchases.forEach((p) => {
-        csv += `"${p.id}","${new Date(p.date).toISOString().split('T')[0]}","${p.product?.name || ''}","${p.product?.category || ''}",${p.quantity},"${p.product?.unit || ''}",${p.costPrice},${p.totalAmount},"${p.supplierName}","${p.invoiceNumber}"\n`;
+        const dateStr = p.date ? new Date(p.date).toISOString().split('T')[0] : '';
+        const invoiceNo = p.invoiceNumber || `INV-${p.id}`;
+        if (p.items && p.items.length > 0) {
+          p.items.forEach((it) => {
+            const pName = it.product?.name || 'Dairy Inward';
+            const pCat = it.product?.category || 'General';
+            const pUnit = it.product?.unit || 'unit';
+            const qty = Number(it.quantity || 0);
+            const rate = Number(it.costPrice || 0);
+            const lineTot = Number(it.subtotal || qty * rate);
+            csv += `"${p.id}","${invoiceNo}","${dateStr}","${pName}","${pCat}",${qty},"${pUnit}",${rate.toFixed(2)},${lineTot.toFixed(2)},${Number(p.totalAmount || 0).toFixed(2)},"${p.supplierName || ''}"\n`;
+          });
+        } else {
+          csv += `"${p.id}","${invoiceNo}","${dateStr}","${p.product?.name || 'Dairy Inward'}","${p.product?.category || 'General'}",${p.quantity || 1},"${p.product?.unit || 'unit'}",${Number(p.costPrice || p.totalAmount || 0).toFixed(2)},${Number(p.totalAmount || 0).toFixed(2)},${Number(p.totalAmount || 0).toFixed(2)},"${p.supplierName || ''}"\n`;
+        }
       });
       res.setHeader('Content-Type', 'text/csv');
       res.setHeader('Content-Disposition', 'attachment; filename=mother_dairy_purchases_report.csv');
