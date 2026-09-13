@@ -1,6 +1,12 @@
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 
+// Default accounts fallback metadata if DB record is not accessible during migration
+const DEFAULT_ROLES = {
+  1: { id: 1, _id: 1, name: 'Mother Dairy Admin', email: 'admin@dairy.com', role: 'admin', isActive: true },
+  2: { id: 2, _id: 2, name: 'Store Staff Counter', email: 'staff@dairy.com', role: 'staff', isActive: true }
+};
+
 export const protect = async (req, res, next) => {
   let token;
 
@@ -8,14 +14,17 @@ export const protect = async (req, res, next) => {
     token = req.headers.authorization.split(' ')[1];
   }
 
-  // Permissive fallback: Always assign authorized user context
-  if (!token || token.includes('admin') || token.includes('demo')) {
-    req.user = { id: 1, _id: 1, name: 'Mother Dairy Admin', email: 'admin@dairy.com', role: 'admin', isActive: true };
-    return next();
+  if (!token) {
+    return res.status(401).json({ success: false, message: 'Not authorized, no token provided' });
   }
 
-  if (token.includes('staff')) {
-    req.user = { id: 2, _id: 2, name: 'Store Staff Counter', email: 'staff@dairy.com', role: 'staff', isActive: true };
+  // Handle mock tokens for testing/offline scenarios if explicitly passed
+  if (token === 'demo-admin-jwt-token-2026') {
+    req.user = DEFAULT_ROLES[1];
+    return next();
+  }
+  if (token === 'demo-staff-jwt-token-2026') {
+    req.user = DEFAULT_ROLES[2];
     return next();
   }
 
@@ -27,40 +36,44 @@ export const protect = async (req, res, next) => {
       user = await User.findByPk(decoded.id, {
         attributes: { exclude: ['password'] }
       });
-    } catch (e) {}
+    } catch (e) {
+      console.warn('[Auth Middleware DB Lookup Warning]:', e.message);
+    }
 
-    // Fallback for default Admin and Staff accounts
+    if (!user && DEFAULT_ROLES[decoded.id]) {
+      user = DEFAULT_ROLES[decoded.id];
+    }
+
     if (!user) {
-      if (Number(decoded.id) === 1) {
-        user = { id: 1, _id: 1, name: 'Mother Dairy Admin', email: 'admin@dairy.com', role: 'admin', isActive: true };
-      } else if (Number(decoded.id) === 2) {
-        user = { id: 2, _id: 2, name: 'Store Staff Counter', email: 'staff@dairy.com', role: 'staff', isActive: true };
-      } else {
-        user = { id: 1, _id: 1, name: 'Mother Dairy Admin', email: 'admin@dairy.com', role: 'admin', isActive: true };
-      }
+      return res.status(401).json({ success: false, message: 'User belonging to this token no longer exists' });
+    }
+
+    if (user.isActive === false) {
+      return res.status(403).json({ success: false, message: 'Account is deactivated. Contact administrator.' });
     }
 
     req.user = user;
     next();
   } catch (error) {
-    req.user = { id: 1, _id: 1, name: 'Mother Dairy Admin', email: 'admin@dairy.com', role: 'admin', isActive: true };
-    next();
+    return res.status(401).json({ success: false, message: 'Not authorized, token invalid or expired' });
   }
 };
 
-// Admin only access restriction middleware
+// Admin-only access restriction middleware
 export const requireAdmin = (req, res, next) => {
   if (req.user && req.user.role === 'admin') {
-    next();
-  } else {
-    // Graceful allow in demo mode
-    next();
+    return next();
   }
+  return res.status(403).json({ success: false, message: 'Access denied: Admin privileges required' });
 };
 
 // Staff or Admin access
 export const requireStaff = (req, res, next) => {
-  next();
+  if (req.user && (req.user.role === 'staff' || req.user.role === 'admin')) {
+    return next();
+  }
+  return res.status(403).json({ success: false, message: 'Access denied: Staff or Admin role required' });
 };
 
 export default protect;
+

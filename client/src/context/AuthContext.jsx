@@ -42,23 +42,12 @@ export const AuthProvider = ({ children }) => {
           setInitialLoading(false);
         });
     } else {
-      // Auto-initialize demo Admin for mobile and instant browsing
-      const defaultAdmin = {
-        _id: 1,
-        id: 1,
-        name: 'Mother Dairy Admin',
-        email: 'admin@dairy.com',
-        role: 'admin',
-        phone: '+91 98100 00001'
-      };
-      const defaultToken = 'demo-admin-jwt-token-2026';
-      setUser(defaultAdmin);
-      setToken(defaultToken);
-      localStorage.setItem('dairy_token', defaultToken);
-      localStorage.setItem('dairy_user', JSON.stringify(defaultAdmin));
+      setUser(null);
+      setToken(null);
       setInitialLoading(false);
     }
   }, []);
+
 
 
   const login = async (email, password) => {
