@@ -12,23 +12,21 @@ Purchase.init(
     },
     productId: {
       type: DataTypes.INTEGER,
-      allowNull: false,
+      allowNull: true,
       references: {
         model: 'products',
         key: 'id'
       },
-      onDelete: 'CASCADE'
+      onDelete: 'SET NULL'
     },
     quantity: {
       type: DataTypes.FLOAT,
-      allowNull: false,
-      validate: {
-        min: 0.01
-      }
+      allowNull: true,
+      defaultValue: 0
     },
     costPrice: {
       type: DataTypes.DECIMAL(10, 2),
-      allowNull: false,
+      allowNull: true,
       defaultValue: 0.0
     },
     totalAmount: {

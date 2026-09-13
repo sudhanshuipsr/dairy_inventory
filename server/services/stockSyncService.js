@@ -1,13 +1,13 @@
 import { Stock, Product } from '../models/index.js';
 
-export const addStock = async (productId, quantity) => {
+export const addStock = async (productId, quantity, options = {}) => {
   const numQty = Number(quantity);
   if (isNaN(numQty) || numQty <= 0) return;
 
-  const product = await Product.findByPk(productId);
+  const product = await Product.findByPk(productId, { transaction: options.transaction });
   const threshold = product ? product.reorderThreshold : 20;
 
-  let stock = await Stock.findOne({ where: { productId } });
+  let stock = await Stock.findOne({ where: { productId }, transaction: options.transaction });
 
   if (!stock) {
     stock = await Stock.create({
@@ -15,22 +15,22 @@ export const addStock = async (productId, quantity) => {
       currentQuantity: numQty,
       reorderThreshold: threshold,
       lastUpdated: new Date()
-    });
+    }, { transaction: options.transaction });
   } else {
     stock.currentQuantity = Number(stock.currentQuantity || 0) + numQty;
     stock.lastUpdated = new Date();
-    await stock.save();
+    await stock.save({ transaction: options.transaction });
   }
 
   return stock;
 };
 
-export const subtractStock = async (productId, quantity) => {
+export const subtractStock = async (productId, quantity, options = {}) => {
   const numQty = Number(quantity);
   if (isNaN(numQty) || numQty <= 0) return;
 
-  let stock = await Stock.findOne({ where: { productId } });
-  const product = await Product.findByPk(productId);
+  let stock = await Stock.findOne({ where: { productId }, transaction: options.transaction });
+  const product = await Product.findByPk(productId, { transaction: options.transaction });
 
   if (!stock) {
     throw new Error(
@@ -47,7 +47,7 @@ export const subtractStock = async (productId, quantity) => {
 
   stock.currentQuantity = current - numQty;
   stock.lastUpdated = new Date();
-  await stock.save();
+  await stock.save({ transaction: options.transaction });
 
   return stock;
 };

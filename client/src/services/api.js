@@ -73,6 +73,7 @@ export const deleteSupplierApi = (id) => api.delete(`/suppliers/${id}`);
 
 // 5. Purchases APIs (Inward)
 export const getPurchasesApi = (params) => api.get('/purchases', { params });
+export const getPurchaseByIdApi = (id) => api.get(`/purchases/${id}`);
 export const createPurchaseApi = (data) => api.post('/purchases', data);
 export const deletePurchaseApi = (id) => api.delete(`/purchases/${id}`);
 

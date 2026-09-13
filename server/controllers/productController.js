@@ -157,10 +157,12 @@ export const createProduct = async (req, res) => {
       reorderThreshold: reorderThreshold ? Number(reorderThreshold) : 20
     });
 
+    const initialQty = req.body.initialQuantity !== undefined ? Math.max(0, Number(req.body.initialQuantity)) : 0;
+
     // Create corresponding Stock record
     await Stock.create({
       productId: product.id,
-      currentQuantity: 0,
+      currentQuantity: initialQty,
       reorderThreshold: product.reorderThreshold,
       lastUpdated: new Date()
     });

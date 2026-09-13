@@ -50,6 +50,9 @@ export const ensureDbConnected = async () => {
       try {
         await sequelize.query("ALTER TABLE products ADD COLUMN IF NOT EXISTS barcode VARCHAR(100);");
         await sequelize.query("ALTER TABLE purchases ADD COLUMN IF NOT EXISTS \"supplierId\" INTEGER;");
+        await sequelize.query("ALTER TABLE purchases ALTER COLUMN \"productId\" DROP NOT NULL;");
+        await sequelize.query("ALTER TABLE purchases ALTER COLUMN quantity DROP NOT NULL;");
+        await sequelize.query("ALTER TABLE purchases ALTER COLUMN \"costPrice\" DROP NOT NULL;");
       } catch (e) {}
       await initializeDefaultUsers();
       console.log(`[Database] Connected and synced successfully (${activeDatabaseType.toUpperCase()})`);

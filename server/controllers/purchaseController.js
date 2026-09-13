@@ -1,222 +1,442 @@
 import { Op } from 'sequelize';
-import { Purchase, Product, ExpiryBatch, User } from '../models/index.js';
+import { sequelize, Purchase, PurchaseItem, Product, ExpiryBatch, User, Supplier } from '../models/index.js';
 import { addStock, subtractStock } from '../services/stockSyncService.js';
 import { logAudit } from '../middleware/auditLogger.js';
 
 // @route   GET /api/purchases
-// @desc    Get all purchase inward transactions
+// @desc    Get all purchase inward transactions with multi-item support and history filters
 // @access  Private
 export const getPurchases = async (req, res) => {
   try {
-    const { startDate, endDate, productId, supplier } = req.query;
+    const { startDate, endDate, productId, supplier, supplierId } = req.query;
     const where = {};
 
     if (startDate || endDate) {
       where.date = {};
       if (startDate) where.date[Op.gte] = new Date(startDate);
-      if (endDate) where.date[Op.lte] = new Date(endDate);
+      if (endDate) where.date[Op.lte] = new Date(endDate + 'T23:59:59.999Z');
     }
 
-    if (productId) {
-      where.productId = productId;
+    if (supplierId) {
+      where.supplierId = Number(supplierId);
     }
 
-    if (supplier) {
-      where.supplierName = { [Op.like]: `%${supplier}%` };
+    if (supplier && supplier.trim()) {
+      where.supplierName = { [Op.like]: `%${supplier.trim()}%` };
     }
 
     const purchases = await Purchase.findAll({
       where,
       include: [
-        { model: Product, as: 'product', attributes: ['id', 'name', 'category', 'unit', 'qrCode'] },
-        { model: User, as: 'user', attributes: ['id', 'name', 'email', 'role'] }
+        {
+          model: PurchaseItem,
+          as: 'items',
+          include: [
+            {
+              model: Product,
+              as: 'product',
+              attributes: ['id', 'name', 'category', 'unit', 'qrCode', 'barcode']
+            }
+          ]
+        },
+        {
+          model: Supplier,
+          as: 'supplier',
+          attributes: ['id', 'name', 'phone', 'email', 'gstNumber', 'category']
+        },
+        {
+          model: Product,
+          as: 'product',
+          attributes: ['id', 'name', 'category', 'unit', 'qrCode', 'barcode']
+        },
+        {
+          model: User,
+          as: 'user',
+          attributes: ['id', 'name', 'email', 'role']
+        }
       ],
       order: [['date', 'DESC']]
     });
 
-    const formattedPurchases = purchases.map((p) => {
+    let formatted = purchases.map((p) => {
       const pJson = p.toJSON();
       pJson._id = pJson.id;
-      if (pJson.product) {
-        pJson.product._id = pJson.product.id;
-        pJson.productId = pJson.product;
+
+      // Handle legacy single-item purchases vs new multi-item purchases
+      let items = (pJson.items || []).map((it) => ({
+        ...it,
+        _id: it.id,
+        quantity: Number(it.quantity || 0),
+        costPrice: Number(it.costPrice || 0),
+        subtotal: Number(it.subtotal || 0),
+        product: it.product ? { ...it.product, _id: it.product.id } : null
+      }));
+
+      // Fallback: If no items relation exists but legacy productId/quantity is populated
+      if (items.length === 0 && pJson.productId && pJson.product) {
+        items = [
+          {
+            id: `legacy-${pJson.id}`,
+            _id: `legacy-${pJson.id}`,
+            productId: pJson.productId,
+            quantity: Number(pJson.quantity || 0),
+            costPrice: Number(pJson.costPrice || 0),
+            subtotal: Number(pJson.totalAmount || 0),
+            product: { ...pJson.product, _id: pJson.product.id }
+          }
+        ];
       }
-      if (pJson.user) {
-        pJson.user._id = pJson.user.id;
-        pJson.addedBy = pJson.user;
-      }
-      pJson.quantity = Number(pJson.quantity);
-      pJson.costPrice = Number(pJson.costPrice);
-      pJson.totalAmount = Number(pJson.totalAmount);
-      return pJson;
+
+      const totalQuantity = items.reduce((sum, it) => sum + Number(it.quantity || 0), 0) || Number(pJson.quantity || 0);
+
+      return {
+        ...pJson,
+        totalAmount: Number(pJson.totalAmount || 0),
+        totalQuantity,
+        itemsCount: items.length,
+        items,
+        supplierName: pJson.supplier?.name || pJson.supplierName || 'Mother Dairy Cooperative',
+        addedBy: pJson.user ? { ...pJson.user, _id: pJson.user.id } : null
+      };
     });
 
-    let resultList = formattedPurchases;
+    // Optional productId filter (filter purchases containing this productId in header or items)
+    if (productId) {
+      const pIdNum = Number(productId);
+      formatted = formatted.filter(
+        (p) => p.productId === pIdNum || (p.items || []).some((it) => it.productId === pIdNum)
+      );
+    }
 
-    const totalSpent = resultList.reduce((sum, p) => sum + Number(p.totalAmount || 0), 0);
-    const totalQuantity = resultList.reduce((sum, p) => sum + Number(p.quantity || 0), 0);
+    const totalSpent = formatted.reduce((sum, p) => sum + Number(p.totalAmount || 0), 0);
+    const totalQuantity = formatted.reduce((sum, p) => sum + Number(p.totalQuantity || 0), 0);
 
     res.status(200).json({
       success: true,
-      count: resultList.length,
-      totalSpent,
+      count: formatted.length,
+      totalSpent: Number(totalSpent.toFixed(2)),
       totalQuantity,
-      purchases: resultList
+      purchases: formatted
     });
+  } catch (error) {
+    console.error('getPurchases error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @route   GET /api/purchases/:id
+// @desc    Get single purchase with items breakdown
+// @access  Private
+export const getPurchaseById = async (req, res) => {
+  try {
+    const purchase = await Purchase.findByPk(req.params.id, {
+      include: [
+        {
+          model: PurchaseItem,
+          as: 'items',
+          include: [
+            {
+              model: Product,
+              as: 'product',
+              attributes: ['id', 'name', 'category', 'unit', 'qrCode', 'barcode']
+            }
+          ]
+        },
+        {
+          model: Supplier,
+          as: 'supplier'
+        },
+        {
+          model: User,
+          as: 'user',
+          attributes: ['id', 'name', 'email', 'role']
+        }
+      ]
+    });
+
+    if (!purchase) {
+      return res.status(404).json({ success: false, message: 'Purchase not found' });
+    }
+
+    const pJson = purchase.toJSON();
+    pJson._id = pJson.id;
+    res.status(200).json({ success: true, purchase: pJson });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
-
 };
 
 // @route   POST /api/purchases
-// @desc    Record new purchase + AUTO STOCK ADD + AUTO EXPIRY BATCH CREATE
+// @desc    Create purchase order with line items + ATOMIC SEQUELIZE TRANSACTION + STOCK SYNC
 // @access  Private
 export const createPurchase = async (req, res) => {
+  const t = await sequelize.transaction();
+
   try {
     const {
-      productId,
-      quantity,
-      costPrice,
+      supplierId,
       supplierName,
       invoiceNumber,
       date,
-      expiryDate,
-      batchNumber,
-      notes
+      notes,
+      items
     } = req.body;
 
-    const effectiveSupplier = supplierName && supplierName.trim() ? supplierName.trim() : 'Mother Dairy Inward Procurement';
+    // Support both multi-item payload (items: [...]) and legacy single-item payload
+    let lineItems = [];
+    if (Array.isArray(items) && items.length > 0) {
+      lineItems = items;
+    } else if (req.body.productId && req.body.quantity) {
+      lineItems = [
+        {
+          productId: req.body.productId,
+          quantity: req.body.quantity,
+          costPrice: req.body.costPrice,
+          expiryDate: req.body.expiryDate,
+          batchNumber: req.body.batchNumber
+        }
+      ];
+    }
 
-    if (!productId || !quantity || costPrice === undefined) {
+    if (lineItems.length === 0) {
+      await t.rollback();
       return res.status(400).json({
         success: false,
-        message: 'Product, quantity, and cost price are required'
+        message: 'At least one product line item is required'
       });
     }
 
-    const product = await Product.findByPk(productId);
-    if (!product) {
-      return res.status(404).json({ success: false, message: 'Product not found' });
+    // Validate line items
+    const validatedItems = [];
+    for (let idx = 0; idx < lineItems.length; idx++) {
+      const it = lineItems[idx];
+      const prodId = Number(it.productId);
+      const qty = Number(it.quantity);
+      const cost = Number(it.costPrice);
+
+      if (!prodId || isNaN(prodId)) {
+        await t.rollback();
+        return res.status(400).json({ success: false, message: `Line ${idx + 1}: Valid product is required` });
+      }
+
+      if (!qty || qty <= 0 || isNaN(qty)) {
+        await t.rollback();
+        return res.status(400).json({ success: false, message: `Line ${idx + 1}: Quantity must be greater than 0` });
+      }
+
+      if (cost < 0 || isNaN(cost)) {
+        await t.rollback();
+        return res.status(400).json({ success: false, message: `Line ${idx + 1}: Cost price cannot be negative` });
+      }
+
+      const subtotal = Number((qty * cost).toFixed(2));
+      validatedItems.push({
+        productId: prodId,
+        quantity: qty,
+        costPrice: cost,
+        subtotal,
+        expiryDate: it.expiryDate || null,
+        batchNumber: it.batchNumber || null
+      });
     }
 
-    const numQty = Number(quantity);
-    const numCost = Number(costPrice);
-    const totalAmount = Number((numQty * numCost).toFixed(2));
+    // Calculate Grand Total
+    const totalAmount = Number(
+      validatedItems.reduce((sum, it) => sum + it.subtotal, 0).toFixed(2)
+    );
+
     const purchaseDate = date ? new Date(date) : new Date();
-    const userId = req.user.id || req.user._id;
+    const userId = req.user?.id || req.user?._id || 1;
 
-    // 1. Create Purchase record
-    const purchase = await Purchase.create({
-      productId: product.id,
-      quantity: numQty,
-      costPrice: numCost,
-      totalAmount,
-      supplierName: effectiveSupplier,
-      invoiceNumber: invoiceNumber || `INV-${Date.now().toString().slice(-6)}`,
-      date: purchaseDate,
-      addedBy: userId,
-      notes: notes || ''
-    });
+    // Resolve Supplier
+    let resolvedSupplierName = supplierName ? supplierName.trim() : '';
+    let validSupplierId = null;
 
-    // 2. AUTO STOCK SYNC: Add to Stock
-    await addStock(product.id, numQty);
+    if (supplierId) {
+      const sup = await Supplier.findByPk(supplierId, { transaction: t });
+      if (sup) {
+        validSupplierId = sup.id;
+        if (!resolvedSupplierName) resolvedSupplierName = sup.name;
+      }
+    }
 
-    // 3. Create Expiry Batch
-    const calculatedExpiry = expiryDate
-      ? new Date(expiryDate)
-      : new Date(purchaseDate.getTime() + (product.shelfLifeDays || 3) * 24 * 60 * 60 * 1000);
+    if (!resolvedSupplierName) {
+      resolvedSupplierName = 'Mother Dairy Inward Procurement';
+    }
 
-    const generatedBatchNo = batchNumber && batchNumber.trim()
-      ? batchNumber.trim()
-      : `BCH-${product.category.toUpperCase().slice(0, 3)}-${Date.now().toString().slice(-5)}`;
+    const effectiveInvoice = invoiceNumber && invoiceNumber.trim()
+      ? invoiceNumber.trim()
+      : `INV-${Date.now().toString().slice(-6)}`;
 
-    const expiryBatch = await ExpiryBatch.create({
-      productId: product.id,
-      batchNumber: generatedBatchNo,
-      manufactureDate: purchaseDate,
-      expiryDate: calculatedExpiry,
-      quantity: numQty,
-      status: calculatedExpiry > new Date() ? 'fresh' : 'expired',
-      addedBy: userId,
-      notes: `Auto-created from Purchase #${purchase.id}`
-    });
+    // 1. Create Purchase Master Record inside transaction
+    const purchase = await Purchase.create(
+      {
+        supplierId: validSupplierId,
+        supplierName: resolvedSupplierName,
+        invoiceNumber: effectiveInvoice,
+        date: purchaseDate,
+        totalAmount,
+        addedBy: userId,
+        notes: notes || '',
+        // Populate header fields if single item for backward compatibility
+        productId: validatedItems.length === 1 ? validatedItems[0].productId : null,
+        quantity: validatedItems.length === 1 ? validatedItems[0].quantity : null,
+        costPrice: validatedItems.length === 1 ? validatedItems[0].costPrice : null
+      },
+      { transaction: t }
+    );
 
-    // 4. Audit Log
+    // 2. Create PurchaseItems & Atomically Increment Stock & Create Expiry Batches
+    const createdItems = [];
+    const createdBatches = [];
+
+    for (const it of validatedItems) {
+      const product = await Product.findByPk(it.productId, { transaction: t });
+      if (!product) {
+        await t.rollback();
+        return res.status(404).json({ success: false, message: `Product #${it.productId} not found` });
+      }
+
+      // 2a. Insert PurchaseItem
+      const pItem = await PurchaseItem.create(
+        {
+          purchaseId: purchase.id,
+          productId: it.productId,
+          quantity: it.quantity,
+          costPrice: it.costPrice,
+          subtotal: it.subtotal,
+          batchNumber: it.batchNumber,
+          expiryDate: it.expiryDate ? new Date(it.expiryDate) : null
+        },
+        { transaction: t }
+      );
+      createdItems.push(pItem);
+
+      // 2b. Atomic Stock Increment inside transaction
+      await addStock(it.productId, it.quantity, { transaction: t });
+
+      // 2c. Expiry Batch Generation
+      const calculatedExpiry = it.expiryDate
+        ? new Date(it.expiryDate)
+        : new Date(purchaseDate.getTime() + (product.shelfLifeDays || 3) * 24 * 60 * 60 * 1000);
+
+      const generatedBatchNo = it.batchNumber && it.batchNumber.trim()
+        ? it.batchNumber.trim()
+        : `BCH-${product.category.toUpperCase().slice(0, 3)}-${Date.now().toString().slice(-5)}`;
+
+      const expiryBatch = await ExpiryBatch.create(
+        {
+          productId: product.id,
+          batchNumber: generatedBatchNo,
+          manufactureDate: purchaseDate,
+          expiryDate: calculatedExpiry,
+          quantity: it.quantity,
+          status: calculatedExpiry > new Date() ? 'fresh' : 'expired',
+          addedBy: userId,
+          notes: `Auto-created from Purchase Order #${purchase.id} (${effectiveInvoice})`
+        },
+        { transaction: t }
+      );
+      createdBatches.push(expiryBatch);
+    }
+
+    // 3. Log Audit Trail
     await logAudit({
       req,
       action: 'CREATE',
       entityType: 'Purchase',
       entityId: purchase.id,
-      details: `Purchased ${numQty} ${product.unit} of "${product.name}" from ${supplierName} for ₹${totalAmount}. Stock synced and batch ${generatedBatchNo} logged.`
+      details: `Purchase #${purchase.id} (Invoice: ${effectiveInvoice}) recorded from ${resolvedSupplierName}: ${validatedItems.length} line items totaling ₹${totalAmount}. Stock incremented atomically.`
     });
 
+    // 4. Commit Transaction
+    await t.commit();
+
+    // 5. Fetch Populated Record
     const populated = await Purchase.findByPk(purchase.id, {
       include: [
-        { model: Product, as: 'product', attributes: ['id', 'name', 'category', 'unit', 'qrCode'] },
+        {
+          model: PurchaseItem,
+          as: 'items',
+          include: [{ model: Product, as: 'product', attributes: ['id', 'name', 'category', 'unit'] }]
+        },
+        { model: Supplier, as: 'supplier' },
         { model: User, as: 'user', attributes: ['id', 'name', 'email'] }
       ]
     });
 
     const pJson = populated.toJSON();
     pJson._id = pJson.id;
-    if (pJson.product) {
-      pJson.product._id = pJson.product.id;
-      pJson.productId = pJson.product;
-    }
-    if (pJson.user) {
-      pJson.user._id = pJson.user.id;
-      pJson.addedBy = pJson.user;
-    }
-
-    const expJson = expiryBatch.toJSON();
-    expJson._id = expJson.id;
 
     res.status(201).json({
       success: true,
-      message: `Purchase of ${numQty} ${product.unit} ${product.name} recorded & stock updated!`,
+      message: `Purchase Order with ${validatedItems.length} items recorded and stock updated atomically!`,
       purchase: pJson,
-      expiryBatch: expJson
+      items: createdItems,
+      expiryBatches: createdBatches
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    if (t && !t.finished) {
+      await t.rollback();
+    }
+    console.error('createPurchase error:', error);
+    res.status(500).json({ success: false, message: error.message || 'Failed to create purchase order' });
   }
 };
 
 // @route   DELETE /api/purchases/:id
-// @desc    Delete purchase + REVERSE STOCK DEDUCTION (Admin only)
+// @desc    Delete purchase order and reverse stock addition in atomic transaction (Admin only)
 // @access  Private/Admin
 export const deletePurchase = async (req, res) => {
+  const t = await sequelize.transaction();
+
   try {
     const purchase = await Purchase.findByPk(req.params.id, {
-      include: [{ model: Product, as: 'product' }]
+      include: [
+        { model: PurchaseItem, as: 'items' },
+        { model: Product, as: 'product' }
+      ],
+      transaction: t
     });
 
     if (!purchase) {
+      await t.rollback();
       return res.status(404).json({ success: false, message: 'Purchase record not found' });
     }
 
-    // Reverse stock addition
-    await subtractStock(purchase.productId, purchase.quantity);
+    // Reverse stock for all line items
+    if (Array.isArray(purchase.items) && purchase.items.length > 0) {
+      for (const item of purchase.items) {
+        await subtractStock(item.productId, item.quantity, { transaction: t });
+      }
+    } else if (purchase.productId && purchase.quantity) {
+      // Legacy fallback
+      await subtractStock(purchase.productId, purchase.quantity, { transaction: t });
+    }
 
-    const prodName = purchase.product?.name || 'Item';
-    const qty = purchase.quantity;
-
-    await purchase.destroy();
+    const purId = purchase.id;
+    const inv = purchase.invoiceNumber;
+    await purchase.destroy({ transaction: t });
 
     await logAudit({
       req,
       action: 'DELETE',
       entityType: 'Purchase',
-      entityId: req.params.id,
-      details: `Admin deleted purchase of ${qty} ${prodName}. Stock reversed by ${qty}.`
+      entityId: purId,
+      details: `Admin deleted purchase #${purId} (Invoice: ${inv}). Stock increments were reversed atomically.`
     });
+
+    await t.commit();
 
     res.status(200).json({
       success: true,
-      message: `Purchase deleted and ${qty} units reversed from stock successfully`
+      message: `Purchase #${purId} deleted and all associated product stock reversed successfully`
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    if (t && !t.finished) {
+      await t.rollback();
+    }
+    console.error('deletePurchase error:', error);
+    res.status(500).json({ success: false, message: error.message || 'Failed to delete purchase' });
   }
 };

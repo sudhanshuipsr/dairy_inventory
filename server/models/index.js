@@ -10,6 +10,7 @@ import ExpiryBatch from './ExpiryBatch.js';
 import AuditLog from './AuditLog.js';
 import Feedback from './Feedback.js';
 import Supplier from './Supplier.js';
+import PurchaseItem from './PurchaseItem.js';
 
 // --- Associations ---
 
@@ -20,6 +21,14 @@ Stock.belongsTo(Product, { foreignKey: 'productId', as: 'product' });
 // Supplier <-> Purchases (1:N)
 Supplier.hasMany(Purchase, { foreignKey: 'supplierId', as: 'purchases' });
 Purchase.belongsTo(Supplier, { foreignKey: 'supplierId', as: 'supplier' });
+
+// Purchase <-> PurchaseItem (1:N)
+Purchase.hasMany(PurchaseItem, { foreignKey: 'purchaseId', as: 'items', onDelete: 'CASCADE' });
+PurchaseItem.belongsTo(Purchase, { foreignKey: 'purchaseId', as: 'purchase' });
+
+// Product <-> PurchaseItem (1:N)
+Product.hasMany(PurchaseItem, { foreignKey: 'productId', as: 'purchaseItems', onDelete: 'CASCADE' });
+PurchaseItem.belongsTo(Product, { foreignKey: 'productId', as: 'product' });
 
 // Product <-> Purchases (1:N)
 Product.hasMany(Purchase, { foreignKey: 'productId', as: 'purchases', onDelete: 'CASCADE' });
@@ -64,7 +73,8 @@ export {
   ExpiryBatch,
   AuditLog,
   Feedback,
-  Supplier
+  Supplier,
+  PurchaseItem
 };
 
 
@@ -79,6 +89,8 @@ export default {
   ProductionOutput,
   ExpiryBatch,
   AuditLog,
-  Feedback
+  Feedback,
+  Supplier,
+  PurchaseItem
 };
 
