@@ -1077,18 +1077,37 @@ export const lookupBarcode = async (req, res) => {
     const gs1 = resolveGs1Info(cleanCode);
 
     if (liveData) {
-      const brand = (liveData.brands || gs1?.brand || 'Retail Brand').split(',')[0].trim();
-      const rawName = liveData.product_name_en || liveData.product_name || liveData.generic_name || `${brand} Item`;
+      const gs1 = resolveGs1Info(cleanCode);
+      const brand = (liveData.brands || gs1?.brand || '').split(',')[0].trim();
       const weight = liveData.quantity || (liveData.product_quantity_unit ? `${liveData.product_quantity || ''} ${liveData.product_quantity_unit || ''}`.trim() : (liveData.net_weight || ''));
-      const fullName = weight && !rawName.includes(weight) ? `${rawName} (${weight})` : rawName;
-
-      // Extract Company / Manufacturer
-      let company = liveData.brand_owner || liveData.manufacturer || gs1?.company || `${brand} Foods / Manufacturing`;
-      company = company.replace(/\[|\]/g, '').trim();
 
       const cat = mapCategory(
         [liveData.categories, liveData.categories_tags?.join(' '), liveData.product_name, gs1?.category].filter(Boolean).join(' ')
       );
+
+      let catTitle = 'Product';
+      if (cat === 'milk') catTitle = 'Fresh Milk';
+      else if (cat === 'curd') catTitle = 'Dahi / Curd';
+      else if (cat === 'paneer') catTitle = 'Fresh Paneer';
+      else if (cat === 'ghee') catTitle = 'Pure Ghee';
+      else if (cat === 'butter') catTitle = 'Butter';
+      else if (cat === 'icecream') catTitle = 'Ice Cream';
+      else if (cat === 'sweets') catTitle = 'Sweets';
+      else if (cat === 'bakery') catTitle = 'Biscuits';
+      else if (cat === 'snacks') catTitle = 'Namkeen / Snacks';
+      else if (cat === 'beverages') catTitle = 'Beverage';
+
+      const detectedBrand = brand || gs1?.brand || (cleanCode.startsWith('8901648') ? 'Mother Dairy' : cleanCode.startsWith('8901262') ? 'Amul' : 'GS1');
+      const rawName = liveData.product_name_en || 
+        liveData.product_name || 
+        liveData.generic_name || 
+        (detectedBrand ? `${detectedBrand} ${catTitle}` : `Product (${cleanCode})`);
+
+      const fullName = weight && !rawName.includes(weight) ? `${rawName} (${weight})` : rawName;
+
+      // Extract Company / Manufacturer
+      let company = liveData.brand_owner || liveData.manufacturer || gs1?.company || `${detectedBrand} Manufacturing`;
+      company = company.replace(/\[|\]/g, '').trim();
 
       // Intelligent price detection: parse text for MRP or use realistic category/weight estimator
       const parsedPrice = extractPriceFromText(rawName) || 
@@ -1104,7 +1123,7 @@ export const lookupBarcode = async (req, res) => {
         source: 'open_food_facts',
         product: {
           name: fullName,
-          brand,
+          brand: detectedBrand,
           companyName: company,
           supplierName: `${company} / Direct Distributor`,
           category: cat,
@@ -1114,7 +1133,7 @@ export const lookupBarcode = async (req, res) => {
           shelfLifeDays: cat === 'milk' ? 3 : (cat === 'paneer' || cat === 'curd' ? 15 : 120),
           barcode: cleanCode,
           imageUrl: liveData.image_url || liveData.image_front_url || '',
-          description: liveData.generic_name || liveData.ingredients_text || `Live product verified via Barcode: ${cleanCode}`,
+          description: liveData.generic_name || liveData.ingredients_text || `Verified Product via Barcode: ${cleanCode}`,
           currentQuantity: 0,
           reorderThreshold: 15
         }
@@ -1123,13 +1142,20 @@ export const lookupBarcode = async (req, res) => {
 
     // 4. GS1 Prefix Intelligence (If Open Food Facts doesn't have the specific SKU)
     if (gs1) {
+      let catTitle = 'Product';
+      if (gs1.category === 'milk') catTitle = 'Milk Product';
+      else if (gs1.category === 'sweets') catTitle = 'Sweets';
+      else if (gs1.category === 'snacks') catTitle = 'Snacks';
+      else if (gs1.category === 'bakery') catTitle = 'Biscuits';
+      else if (gs1.category === 'beverages') catTitle = 'Beverage';
+
       const estPrice = estimateRealisticMrp(gs1.brand, gs1.category || 'grocery', 'pack');
       const costPrice = Math.round(estPrice * 0.8);
       return res.status(200).json({
         success: true,
         source: 'gs1_registry',
         product: {
-          name: `${gs1.brand} Product (${cleanCode.slice(-4)})`,
+          name: `${gs1.brand} ${catTitle} (${cleanCode.slice(-4)})`,
           brand: gs1.brand,
           companyName: gs1.company,
           supplierName: `${gs1.company} / Direct Distributor`,
@@ -1146,25 +1172,28 @@ export const lookupBarcode = async (req, res) => {
       });
     }
 
-    // 5. Generic Unlisted Barcode Draft (Accurate dynamic naming, never hardcoding another company)
-    const country = cleanCode.startsWith('890') ? 'India' : 'International';
-    const estPrice = estimateRealisticMrp(cleanCode, 'dairy', 'pack');
+    // 5. Generic Unlisted Barcode Draft (Accurate dynamic naming)
+    const isMd = cleanCode.startsWith('8901648');
+    const isAmul = cleanCode.startsWith('8901262');
+    const brandName = isMd ? 'Mother Dairy' : isAmul ? 'Amul' : (cleanCode.startsWith('890') ? 'GS1 India' : 'FMCG');
+    const categoryName = isMd || isAmul ? 'milk' : 'sweets';
+    const estPrice = isMd || isAmul ? 34 : 40;
     const costPrice = Math.round(estPrice * 0.8);
     return res.status(200).json({
       success: true,
       source: 'unlisted_draft',
       product: {
-        name: `Scanned Item (${cleanCode})`,
-        brand: 'Direct Manufacturer',
-        companyName: `Retail Manufacturer (${country})`,
-        supplierName: `Local Wholesale Supplier`,
-        category: 'sweets',
+        name: isMd ? `Mother Dairy Product (${cleanCode})` : isAmul ? `Amul Product (${cleanCode})` : `Packaged Product (${cleanCode})`,
+        brand: brandName,
+        companyName: `${brandName} Supplier`,
+        supplierName: `${brandName} Direct Supply`,
+        category: categoryName,
         unit: 'pack',
         unitPrice: estPrice,
         costPrice,
         shelfLifeDays: 60,
         barcode: cleanCode,
-        description: `Scanned ${country} Retail Barcode: ${cleanCode}`,
+        description: `Barcode: ${cleanCode}`,
         currentQuantity: 0,
         reorderThreshold: 10
       }

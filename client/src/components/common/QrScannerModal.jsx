@@ -607,16 +607,30 @@ const QrScannerModal = ({
           const offData = await offRes.json();
           if (offData && (offData.status === 1 || offData.product)) {
             const p = offData.product;
-            const brand = (p.brands || '').split(',')[0].trim() || 'Retail Brand';
+            const isMd = cleanCode.startsWith('8901648');
+            const isAmul = cleanCode.startsWith('8901262');
+            const brand = (p.brands || '').split(',')[0].trim() || (isMd ? 'Mother Dairy' : isAmul ? 'Amul' : 'GS1 India');
             const comp = p.brand_owner || p.manufacturer || `${brand} Manufacturing`;
-            const name = p.product_name_en || p.product_name || (brand ? `${brand} Item` : 'Packaged Retail Item');
+            const cats = ((p.categories || '') + ' ' + (p.categories_tags?.join(' ') || '')).toLowerCase();
+            let catName = 'sweets';
+            let typeLabel = 'Product';
+            if (cats.includes('milk')) { catName = 'milk'; typeLabel = 'Fresh Milk'; }
+            else if (cats.includes('curd') || cats.includes('dahi') || cats.includes('yogurt')) { catName = 'curd'; typeLabel = 'Dahi / Curd'; }
+            else if (cats.includes('paneer') || cats.includes('cheese')) { catName = 'paneer'; typeLabel = 'Paneer'; }
+            else if (cats.includes('butter')) { catName = 'butter'; typeLabel = 'Butter'; }
+            else if (cats.includes('ghee')) { catName = 'ghee'; typeLabel = 'Pure Ghee'; }
+            else if (cats.includes('biscuit') || cats.includes('bakery')) { catName = 'bakery'; typeLabel = 'Biscuits'; }
+            else if (cats.includes('snack') || cats.includes('noodle')) { catName = 'snacks'; typeLabel = 'Snacks'; }
+            else if (cats.includes('beverage') || cats.includes('drink') || cats.includes('juice')) { catName = 'beverages'; typeLabel = 'Beverage'; }
+
+            const name = p.product_name_en || p.product_name || p.generic_name || `${brand} ${typeLabel}`;
             const weight = p.quantity || p.net_weight || 'pack';
             const fullName = weight && !name.includes(weight) ? `${name} (${weight})` : name;
 
             const detectedPrice = extractPriceFromText(name) ||
               extractPriceFromText(p.generic_name) ||
               extractPriceFromText(weight) ||
-              estimateRealisticMrp(fullName, weight, 'sweets');
+              estimateRealisticMrp(fullName, weight, catName);
             const detectedCost = Math.round(detectedPrice * 0.8) || 30;
 
             product = {
@@ -624,13 +638,13 @@ const QrScannerModal = ({
               brand,
               companyName: comp,
               supplierName: `${comp} / Direct Distributor`,
-              category: 'sweets',
+              category: catName,
               barcode: cleanCode,
               unit: weight || 'pack',
               unitPrice: detectedPrice,
               costPrice: detectedCost,
-              shelfLifeDays: 90,
-              description: p.generic_name || 'Verified Retail Product'
+              shelfLifeDays: catName === 'milk' ? 3 : 60,
+              description: p.generic_name || `Barcode: ${cleanCode}`
             };
           }
         }
@@ -639,16 +653,17 @@ const QrScannerModal = ({
 
     // 4. If completely unlisted, generate accurate generic draft WITHOUT hardcoding another company
     if (!product) {
-      const isIndia = cleanCode.startsWith('890');
-      const origin = isIndia ? 'GS1 India' : 'Retail';
-      const estimatedPrice = cleanCode.startsWith('8901648') || cleanCode.startsWith('8901262') ? 34 : 40;
+      const isMd = cleanCode.startsWith('8901648');
+      const isAmul = cleanCode.startsWith('8901262');
+      const origin = isMd ? 'Mother Dairy' : isAmul ? 'Amul' : (cleanCode.startsWith('890') ? 'GS1 India' : 'FMCG');
+      const estimatedPrice = isMd || isAmul ? 34 : 40;
       const estimatedCost = Math.round(estimatedPrice * 0.8);
       product = {
-        name: `Scanned Item (${cleanCode})`,
+        name: isMd ? `Mother Dairy Product (${cleanCode})` : isAmul ? `Amul Product (${cleanCode})` : `Packaged Product (${cleanCode})`,
         brand: origin,
-        companyName: `${origin} Registered Manufacturer`,
-        supplierName: `Local Wholesale Supplier`,
-        category: 'sweets',
+        companyName: `${origin} Registered Supplier`,
+        supplierName: `${origin} Direct Distributor`,
+        category: isMd || isAmul ? 'milk' : 'sweets',
         barcode: cleanCode,
         unit: 'pack',
         unitPrice: estimatedPrice,
