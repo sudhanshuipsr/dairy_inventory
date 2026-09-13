@@ -14,11 +14,26 @@ import {
 import { addStock, subtractStock } from '../services/stockSyncService.js';
 import { logAudit } from '../middleware/auditLogger.js';
 
+// In-memory cache for dashboard aggregations with 30s TTL
+const reportCache = new Map();
+const CACHE_TTL = 30 * 1000;
+
+export const clearReportCache = () => {
+  reportCache.clear();
+};
+
 // @route   GET /api/reports/dashboard-stats
 // @desc    Get aggregated stats for dashboard counters and quick alerts
 // @access  Private
 export const getDashboardStats = async (req, res) => {
   try {
+    const isAdmin = req.user?.role === 'admin';
+    const cacheKey = `stats_${isAdmin ? 'admin' : 'staff'}`;
+    const cached = reportCache.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp < CACHE_TTL)) {
+      return res.status(200).json(cached.data);
+    }
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -144,66 +159,95 @@ export const getDashboardStats = async (req, res) => {
       }
     });
 
-    res.status(200).json({
-      success: true,
-      stats: {
-        totalProducts: allProducts.length,
-        totalStockUnits,
-        totalInventoryValue,
-        totalInventoryCost,
-        lowStockCount: lowStockItems.length,
-        lowStockItems: lowStockItems.slice(0, 6).map((s) => ({
-          id: s.product?.id,
-          _id: s.product?.id,
-          name: s.product?.name,
-          category: s.product?.category,
-          unit: s.product?.unit,
-          currentQuantity: Number(s.currentQuantity),
-          reorderThreshold: Number(s.reorderThreshold)
-        })),
-        nearExpiryCount: nearExpiryBatches.length,
-        nearExpiryBatches: nearExpiryBatches.slice(0, 6).map((b) => ({
-          id: b.id,
-          _id: b.id,
-          batchNumber: b.batchNumber,
-          productName: b.product?.name,
-          unit: b.product?.unit,
-          quantity: Number(b.quantity),
-          expiryDate: b.expiryDate
-        })),
-        expiredCount: expiredBatches.length,
-        today: {
-          salesAmount: todaySalesTotal,
-          salesQuantity: todaySalesQty,
-          salesCount: todaySales.length,
-          grossProfit: todayGrossProfit,
-          netProfit: todayGrossProfit,
-          purchasesAmount: todayPurchasesTotal,
-          purchasesQuantity: todayPurchasesQty,
-          purchasesCount: todayPurchases.length
-        },
-        recentActivity: {
-          sales: recentSales.map((s) => {
-            const j = s.toJSON();
-            j._id = j.id;
-            if (j.product) {
-              j.product._id = j.product.id;
-              j.productId = j.product;
-            }
-            return j;
-          }),
-          purchases: recentPurchases.map((p) => {
-            const j = p.toJSON();
-            j._id = j.id;
-            if (j.product) {
-              j.product._id = j.product.id;
-              j.productId = j.product;
-            }
-            return j;
-          })
+    // Sanitized activity for staff
+    const sanitizedRecentSales = recentSales.map((s) => {
+      const j = s.toJSON();
+      j._id = j.id;
+      if (!isAdmin) {
+        delete j.costPriceSnapshot;
+        if (j.items) {
+          j.items = j.items.map(it => {
+            const { costPriceSnapshot, ...rest } = it;
+            return rest;
+          });
         }
       }
+      if (j.product) {
+        j.product._id = j.product.id;
+        j.productId = j.product;
+      }
+      return j;
     });
+
+    const sanitizedRecentPurchases = recentPurchases.map((p) => {
+      const j = p.toJSON();
+      j._id = j.id;
+      if (j.product) {
+        j.product._id = j.product.id;
+        j.productId = j.product;
+      }
+      return j;
+    });
+
+    // Build role-tailored stats object
+    const statsPayload = {
+      totalProducts: allProducts.length,
+      totalStockUnits,
+      lowStockCount: lowStockItems.length,
+      lowStockItems: lowStockItems.slice(0, 6).map((s) => ({
+        id: s.product?.id,
+        _id: s.product?.id,
+        name: s.product?.name,
+        category: s.product?.category,
+        unit: s.product?.unit,
+        currentQuantity: Number(s.currentQuantity),
+        reorderThreshold: Number(s.reorderThreshold)
+      })),
+      nearExpiryCount: nearExpiryBatches.length,
+      nearExpiryBatches: nearExpiryBatches.slice(0, 6).map((b) => ({
+        id: b.id,
+        _id: b.id,
+        batchNumber: b.batchNumber,
+        productName: b.product?.name,
+        unit: b.product?.unit,
+        quantity: Number(b.quantity),
+        expiryDate: b.expiryDate
+      })),
+      expiredCount: expiredBatches.length,
+      today: {
+        salesAmount: todaySalesTotal,
+        salesQuantity: todaySalesQty,
+        salesCount: todaySales.length,
+        purchasesAmount: todayPurchasesTotal,
+        purchasesQuantity: todayPurchasesQty,
+        purchasesCount: todayPurchases.length,
+        ...(isAdmin ? {
+          grossProfit: todayGrossProfit,
+          netProfit: todayGrossProfit
+        } : {})
+      },
+      recentActivity: {
+        sales: sanitizedRecentSales,
+        purchases: sanitizedRecentPurchases
+      }
+    };
+
+    // Admin-only financial valuations
+    if (isAdmin) {
+      statsPayload.totalInventoryValue = totalInventoryValue;
+      statsPayload.totalInventoryCost = totalInventoryCost;
+    } else {
+      statsPayload.totalInventoryValue = totalInventoryValue; // Displayed on dashboard for counter value
+    }
+
+    const response = {
+      success: true,
+      stats: statsPayload,
+      role: req.user?.role || 'staff'
+    };
+
+    reportCache.set(cacheKey, { timestamp: Date.now(), data: response });
+    res.status(200).json(response);
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -214,18 +258,28 @@ export const getDashboardStats = async (req, res) => {
 // @access  Private
 export const getAnalyticsReport = async (req, res) => {
   try {
+    const isAdmin = req.user?.role === 'admin';
     const { range, startDate, endDate, productId } = req.query;
+    const cacheKey = `analytics_${isAdmin ? 'admin' : 'staff'}_${range || 'month'}_${startDate || ''}_${endDate || ''}_${productId || 'all'}`;
+    const cached = reportCache.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp < CACHE_TTL)) {
+      return res.status(200).json(cached.data);
+    }
+
     let start = new Date();
     let end = new Date();
     end.setHours(23, 59, 59, 999);
 
     if (range === 'today') {
       start.setHours(0, 0, 0, 0);
-    } else if (range === 'week') {
+    } else if (range === 'week' || range === '7days') {
       start.setDate(start.getDate() - 7);
       start.setHours(0, 0, 0, 0);
-    } else if (range === 'month') {
+    } else if (range === 'month' || range === '30days') {
       start.setDate(start.getDate() - 30);
+      start.setHours(0, 0, 0, 0);
+    } else if (range === '90days') {
+      start.setDate(start.getDate() - 90);
       start.setHours(0, 0, 0, 0);
     } else if (range === 'thisMonth') {
       start.setDate(1);
@@ -299,7 +353,7 @@ export const getAnalyticsReport = async (req, res) => {
     const currentDate = new Date(start);
     while (currentDate <= end) {
       const dateKey = currentDate.toISOString().split('T')[0];
-      daysMap.set(dateKey, { date: dateKey, revenue: 0, sales: 0, purchases: 0, cost: 0, profit: 0 });
+      daysMap.set(dateKey, { date: dateKey, revenue: 0, sales: 0, purchases: 0, cost: 0, profit: 0, marginPct: 0 });
       currentDate.setDate(currentDate.getDate() + 1);
     }
 
@@ -331,8 +385,7 @@ export const getAnalyticsReport = async (req, res) => {
       return productPerformanceMap.get(Number(pId));
     };
 
-    // Calculate item-level revenue, cost, profit:
-    // Profit = (sellingPrice - costPrice) * quantity
+    // Calculate item-level revenue, cost, profit
     sales.forEach((s) => {
       const saleDate = s.date || s.createdAt;
       const dateKey = saleDate ? new Date(saleDate).toISOString().split('T')[0] : '';
@@ -343,7 +396,6 @@ export const getAnalyticsReport = async (req, res) => {
       let saleQty = 0;
 
       if (s.items && s.items.length > 0) {
-        // Multi-line sale
         s.items.forEach((item) => {
           if (productId && productId !== 'all' && Number(item.productId) !== Number(productId)) {
             return;
@@ -380,13 +432,11 @@ export const getAnalyticsReport = async (req, res) => {
           categoryMap.set(cat, catEntry);
         });
 
-        // If order had a discount and all products are selected, deduct discount from revenue & profit
         if ((!productId || productId === 'all') && Number(s.discount || 0) > 0) {
           const discount = Number(s.discount);
           saleRevenue = Math.max(0, saleRevenue - discount);
         }
       } else {
-        // Legacy single-line sale
         if (productId && productId !== 'all' && Number(s.productId) !== Number(productId)) {
           return;
         }
@@ -435,9 +485,10 @@ export const getAnalyticsReport = async (req, res) => {
       }
     });
 
-    // Purchases aggregation
+    // Purchases aggregation & Supplier performance
     let totalPurchasesAmount = 0;
     let totalPurchasesQuantity = 0;
+    const supplierMap = new Map();
 
     purchases.forEach((p) => {
       const pDate = p.date || p.createdAt;
@@ -471,6 +522,19 @@ export const getAnalyticsReport = async (req, res) => {
       if (dayEntry) {
         dayEntry.purchases += purchaseAmt;
       }
+
+      // Supplier Performance aggregation
+      const suppName = p.supplierName || 'Cooperative Dairy Hub';
+      const curSupp = supplierMap.get(suppName) || { 
+        supplierName: suppName, 
+        totalAmount: 0, 
+        ordersCount: 0, 
+        unitsCount: 0 
+      };
+      curSupp.totalAmount += purchaseAmt;
+      curSupp.ordersCount += 1;
+      curSupp.unitsCount += purchaseQty;
+      supplierMap.set(suppName, curSupp);
     });
 
     const grossProfit = totalSalesAmount - totalCOGS;
@@ -487,6 +551,69 @@ export const getAnalyticsReport = async (req, res) => {
       ? Number(((grossProfit / totalSalesAmount) * 100).toFixed(2)) 
       : 0;
 
+    // Previous period comparison for Net Profit (Admin only)
+    let netProfitChangePct = 0;
+    let isProfitUp = true;
+    let previousPeriodNetProfit = 0;
+
+    if (isAdmin) {
+      try {
+        const durationMs = Math.max(86400000, end.getTime() - start.getTime());
+        const prevStart = new Date(start.getTime() - durationMs);
+        const prevEnd = new Date(start.getTime() - 1);
+
+        const prevSales = await Sale.findAll({
+          where: { date: { [Op.gte]: prevStart, [Op.lte]: prevEnd } },
+          include: [{ model: SaleItem, as: 'items' }]
+        });
+
+        let prevRev = 0;
+        let prevCogs = 0;
+        prevSales.forEach((s) => {
+          prevRev += Number(s.totalAmount || 0);
+          if (s.items && s.items.length > 0) {
+            s.items.forEach(i => {
+              prevCogs += Number(i.costPriceSnapshot || 0) * Number(i.quantity || 0);
+            });
+          } else {
+            prevCogs += Number(s.costPriceSnapshot || 0) * Number(s.quantity || 0);
+          }
+        });
+        previousPeriodNetProfit = prevRev - prevCogs;
+        if (previousPeriodNetProfit !== 0) {
+          netProfitChangePct = Number((((netProfit - previousPeriodNetProfit) / Math.abs(previousPeriodNetProfit)) * 100).toFixed(1));
+        } else {
+          netProfitChangePct = netProfit > 0 ? 100 : 0;
+        }
+        isProfitUp = netProfit >= previousPeriodNetProfit;
+      } catch (err) {
+        console.warn('Previous period calculation error:', err.message);
+      }
+    }
+
+    // Stock Health Statistics
+    const activeProducts = allProductsList.filter(p => p.isActive !== false);
+    let healthyCount = 0;
+    let lowCount = 0;
+    let outCount = 0;
+    activeProducts.forEach((p) => {
+      const stock = Number(p.currentQuantity || 0);
+      const reorder = Number(p.reorderThreshold || 20);
+      if (stock <= 0) {
+        outCount++;
+      } else if (stock <= reorder) {
+        lowCount++;
+      } else {
+        healthyCount++;
+      }
+    });
+    const totalProdCount = activeProducts.length || 1;
+    const stockHealth = [
+      { name: 'Healthy Stock', count: healthyCount, percentage: Number(((healthyCount / totalProdCount) * 100).toFixed(1)), color: '#16a34a' },
+      { name: 'Low Stock', count: lowCount, percentage: Number(((lowCount / totalProdCount) * 100).toFixed(1)), color: '#f59e0b' },
+      { name: 'Out of Stock', count: outCount, percentage: Number(((outCount / totalProdCount) * 100).toFixed(1)), color: '#ef4444' }
+    ];
+
     // Finalize product margins and rankings
     const productList = Array.from(productPerformanceMap.values()).map((p) => {
       const margin = p.revenue > 0 ? Number(((p.profit / p.revenue) * 100).toFixed(2)) : 0;
@@ -498,7 +625,7 @@ export const getAnalyticsReport = async (req, res) => {
       };
     });
 
-    // Best & worst performing products by profit margin %
+    // Best & worst performing products
     const productsWithSales = productList.filter((p) => p.quantitySold > 0 || p.revenue > 0);
     const bestPerforming = [...productsWithSales].sort((a, b) => b.profitMargin - a.profitMargin).slice(0, 8);
     const worstPerforming = [...productsWithSales].sort((a, b) => a.profitMargin - b.profitMargin).slice(0, 8);
@@ -515,15 +642,25 @@ export const getAnalyticsReport = async (req, res) => {
       profitMargin: c.revenue > 0 ? Number(((c.profit / c.revenue) * 100).toFixed(2)) : 0
     })).sort((a, b) => b.revenue - a.revenue);
 
-    const timeSeries = Array.from(daysMap.values());
+    // Finalize TimeSeries with margin %
+    const timeSeries = Array.from(daysMap.values()).map(d => ({
+      ...d,
+      marginPct: d.revenue > 0 ? Number(((d.profit / d.revenue) * 100).toFixed(1)) : 0
+    }));
 
-    res.status(200).json({
-      success: true,
-      summary: {
-        totalSalesAmount,
-        totalSalesQuantity,
-        totalPurchasesAmount,
-        totalPurchasesQuantity,
+    // Supplier performance sorted
+    const supplierPerformance = Array.from(supplierMap.values()).sort((a, b) => b.totalAmount - a.totalAmount);
+
+    // Build role-tailored summary
+    const responseSummary = {
+      totalSalesAmount,
+      totalSalesQuantity,
+      totalPurchasesAmount,
+      totalPurchasesQuantity,
+      totalRevenue: totalSalesAmount,
+      totalPurchases: totalPurchasesAmount,
+      totalUnitsSold: totalSalesQuantity,
+      ...(isAdmin ? {
         totalCOGS,
         totalCost: totalCOGS,
         grossProfit,
@@ -532,23 +669,49 @@ export const getAnalyticsReport = async (req, res) => {
         productionWastageLitres,
         netProfit,
         profitMarginPct,
-        // Compatibility aliases
-        totalRevenue: totalSalesAmount,
-        totalPurchases: totalPurchasesAmount,
-        totalUnitsSold: totalSalesQuantity,
-        profitMargin: profitMarginPct
-      },
-      timeSeries,
-      categoryBreakdown,
-      topSelling,
-      bestPerformingProducts: bestPerforming,
-      worstPerformingProducts: worstPerforming,
-      productPerformance: productList
-    });
+        profitMargin: profitMarginPct,
+        netProfitChangePct,
+        isProfitUp,
+        previousPeriodNetProfit
+      } : {})
+    };
+
+    // Role-tailored sanitized arrays for staff
+    let sanitizedTimeSeries = timeSeries;
+    let sanitizedCategories = categoryBreakdown;
+    let sanitizedTopSelling = topSelling;
+    let sanitizedProducts = productList;
+
+    if (!isAdmin) {
+      sanitizedTimeSeries = timeSeries.map(({ cost, profit, marginPct, ...rest }) => rest);
+      sanitizedCategories = categoryBreakdown.map(({ cost, profit, profitMargin, ...rest }) => rest);
+      sanitizedTopSelling = topSelling.map(({ cost, profit, profitMargin, ...rest }) => rest);
+      sanitizedProducts = productList.map(({ cost, profit, profitMargin, ...rest }) => rest);
+    }
+
+    const payload = {
+      success: true,
+      role: req.user?.role || 'staff',
+      summary: responseSummary,
+      timeSeries: sanitizedTimeSeries,
+      categoryBreakdown: sanitizedCategories,
+      topSelling: sanitizedTopSelling,
+      stockHealth,
+      ...(isAdmin ? {
+        bestPerformingProducts: bestPerforming,
+        worstPerformingProducts: worstPerforming,
+        productPerformance: sanitizedProducts,
+        supplierPerformance
+      } : {})
+    };
+
+    reportCache.set(cacheKey, { timestamp: Date.now(), data: payload });
+    res.status(200).json(payload);
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
 
 
 
