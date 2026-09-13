@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Lock, Mail, ArrowRight, ShieldCheck, UserCheck, Sparkles, Loader2 } from 'lucide-react';
+import { Lock, Mail, ArrowRight, UserCheck, Sparkles, Loader2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 
@@ -89,7 +89,7 @@ const Login = () => {
                 <input
                   type="email"
                   required
-                  placeholder="admin@dairy.com"
+                  placeholder="name@dairy.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full pl-10 pr-4 py-3 bg-[#f4f8f2] border border-[#a0c396]/40 rounded-2xl text-xs sm:text-sm font-medium text-[#1e3a1e] placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1e3a1e] focus:bg-white transition-all shadow-inner"
@@ -139,29 +139,17 @@ const Login = () => {
             <span className="text-[11px] font-bold text-[#6a9c6a] block text-center uppercase tracking-wider">
               1-Click Demo Access
             </span>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => handleQuickFill('admin@dairy.com', 'admin123')}
-                className="p-2.5 rounded-2xl bg-[#ebf5eb] hover:bg-[#d8e8d8] border border-[#a0c396]/40 text-left transition-colors cursor-pointer"
-              >
-                <div className="flex items-center gap-1 text-[11px] font-bold text-[#1e3a1e]">
-                  <ShieldCheck className="w-3.5 h-3.5 text-[#6a9c6a]" />
-                  <span>Admin User</span>
-                </div>
-                <div className="text-[10px] text-[#3f5a3f] mt-0.5 truncate">admin@dairy.com</div>
-              </button>
-
+            <div>
               <button
                 type="button"
                 onClick={() => handleQuickFill('staff@dairy.com', 'staff123')}
-                className="p-2.5 rounded-2xl bg-[#ebf5eb] hover:bg-[#d8e8d8] border border-[#a0c396]/40 text-left transition-colors cursor-pointer"
+                className="w-full p-2.5 rounded-2xl bg-[#ebf5eb] hover:bg-[#d8e8d8] border border-[#a0c396]/40 text-left transition-colors cursor-pointer flex items-center justify-between"
               >
-                <div className="flex items-center gap-1 text-[11px] font-bold text-[#2d4a2d]">
+                <div className="flex items-center gap-1.5 text-[11px] font-bold text-[#2d4a2d]">
                   <UserCheck className="w-3.5 h-3.5 text-[#6a9c6a]" />
                   <span>Staff User</span>
                 </div>
-                <div className="text-[10px] text-[#3f5a3f] mt-0.5 truncate">staff@dairy.com</div>
+                <div className="text-[10px] text-[#3f5a3f] font-mono">staff@dairy.com</div>
               </button>
             </div>
           </div>

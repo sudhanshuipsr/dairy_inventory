@@ -102,7 +102,7 @@ export const AuthProvider = ({ children }) => {
         return { success: true, user: dummyUser, token: dummyToken };
       }
 
-      const errMsg = error.response?.data?.message || 'Login failed. Please verify credentials (admin@dairy.com / admin123).';
+      const errMsg = error.response?.data?.message || 'Login failed. Please verify your email and password.';
       addToast(errMsg, 'error');
       throw error;
     } finally {
