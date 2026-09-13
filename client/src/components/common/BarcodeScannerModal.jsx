@@ -1,4 +1,5 @@
-import QrScannerModal from './QrScannerModal';
+import BarcodeScanner from './BarcodeScanner';
 
-export const BarcodeScannerModal = QrScannerModal;
-export default QrScannerModal;
+export const BarcodeScannerModal = BarcodeScanner;
+export default BarcodeScanner;
+

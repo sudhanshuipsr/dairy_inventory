@@ -4,11 +4,12 @@ import {
   getSalesApi, 
   createSaleApi, 
   deleteSaleApi, 
-  getProductsApi 
+  getProductsApi,
+  getProductByCodeApi
 } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import QrScannerModal from '../components/common/QrScannerModal';
+import BarcodeScanner from '../components/common/BarcodeScanner';
 import Modal from '../components/common/Modal';
 import Badge from '../components/common/Badge';
 import ProductSelect from '../components/common/ProductSelect';
@@ -127,9 +128,10 @@ const Sales = () => {
   };
 
   // Barcode / QR Code Auto-fill Handler
-  const handleQrMatched = (scannedCode) => {
+  const handleQrMatched = async (scannedCode) => {
+    setIsScannerOpen(false);
     const upper = (scannedCode || '').trim().toUpperCase();
-    const matched = products.find(
+    let matched = products.find(
       (p) => 
         (p.barcode && p.barcode.toUpperCase() === upper) ||
         (p.qrCode && p.qrCode.toUpperCase() === upper) || 
@@ -141,9 +143,24 @@ const Sales = () => {
       handleSelectProduct(matched);
       setIsModalOpen(true);
       addToast(`Auto-filled: ${matched.name} (Stock: ${matched.currentQuantity})`, 'success');
-    } else {
-      addToast(`No product found matching Barcode "${scannedCode}".`, 'warning');
+      return;
     }
+
+    // Lookup via API
+    try {
+      const res = await getProductByCodeApi(scannedCode);
+      if (res.data?.success && res.data.product) {
+        matched = res.data.product;
+        handleSelectProduct(matched);
+        setIsModalOpen(true);
+        addToast(`Auto-filled: ${matched.name} (Stock: ${matched.currentStock || matched.currentQuantity || 0})`, 'success');
+        return;
+      }
+    } catch (err) {
+      console.warn('Barcode lookup in sales error:', err);
+    }
+
+    addToast(`No product found matching Barcode "${scannedCode}".`, 'warning');
   };
 
   const handleSubmitSale = async (e) => {
@@ -519,11 +536,12 @@ const Sales = () => {
       </Modal>
 
       {/* 5. Barcode & QR Code Camera Scanner Modal */}
-      <QrScannerModal
+      <BarcodeScanner
         isOpen={isScannerOpen}
         onClose={() => setIsScannerOpen(false)}
-        mode="code-only"
-        onScanSuccess={handleQrMatched}
+        onScan={handleQrMatched}
+        title="Scan Product Barcode"
+        subtitle="Point camera at product barcode to auto-populate sale form"
       />
     </div>
   );

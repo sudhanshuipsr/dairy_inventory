@@ -4,11 +4,12 @@ import {
   getPurchasesApi, 
   createPurchaseApi, 
   deletePurchaseApi, 
-  getProductsApi 
+  getProductsApi,
+  getProductByCodeApi
 } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import QrScannerModal from '../components/common/QrScannerModal';
+import BarcodeScanner from '../components/common/BarcodeScanner';
 import Modal from '../components/common/Modal';
 import Badge from '../components/common/Badge';
 import ProductSelect from '../components/common/ProductSelect';
@@ -134,9 +135,10 @@ const Purchases = () => {
   };
 
   // Barcode / QR Code Auto-fill Handler
-  const handleQrMatched = (scannedCode) => {
+  const handleQrMatched = async (scannedCode) => {
+    setIsScannerOpen(false);
     const upper = (scannedCode || '').trim().toUpperCase();
-    const matched = products.find(
+    let matched = products.find(
       (p) => 
         (p.barcode && p.barcode.toUpperCase() === upper) ||
         (p.qrCode && p.qrCode.toUpperCase() === upper) || 
@@ -148,9 +150,24 @@ const Purchases = () => {
       handleSelectProduct(matched);
       setIsModalOpen(true);
       addToast(`Auto-filled: ${matched.name} (${matched.category})`, 'success');
-    } else {
-      addToast(`No existing dairy product found for Barcode/Code "${scannedCode}".`, 'warning');
+      return;
     }
+
+    // If not in pre-loaded products, query the backend code lookup endpoint
+    try {
+      const res = await getProductByCodeApi(scannedCode);
+      if (res.data?.success && res.data.product) {
+        matched = res.data.product;
+        handleSelectProduct(matched);
+        setIsModalOpen(true);
+        addToast(`Auto-filled: ${matched.name}`, 'success');
+        return;
+      }
+    } catch (err) {
+      console.warn('Barcode lookup in purchases error:', err);
+    }
+
+    addToast(`No product found in catalog matching Barcode "${scannedCode}".`, 'warning');
   };
 
   const handleSubmitPurchase = async (e) => {
@@ -513,11 +530,12 @@ const Purchases = () => {
       </Modal>
 
       {/* 5. Barcode & QR Code Camera Scanner Modal */}
-      <QrScannerModal
+      <BarcodeScanner
         isOpen={isScannerOpen}
         onClose={() => setIsScannerOpen(false)}
-        mode="code-only"
-        onScanSuccess={handleQrMatched}
+        onScan={handleQrMatched}
+        title="Scan Product Barcode"
+        subtitle="Point camera at product barcode to auto-populate purchase form"
       />
     </div>
   );

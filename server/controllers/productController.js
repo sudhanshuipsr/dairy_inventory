@@ -59,15 +59,21 @@ export const getProducts = async (req, res) => {
 };
 
 
-// @route   GET /api/products/:id
-// @desc    Get single product by ID, Barcode, or QR Code
+// @route   GET /api/products/:id or GET /api/products/code/:code
+// @desc    Get single product by ID, Barcode (1D EAN/UPC), or QR Code
 // @access  Private
 export const getProductById = async (req, res) => {
   try {
     let product;
-    const idParam = req.params.id;
+    const idParam = (req.params.id || req.params.code || '').toString().trim();
 
-    if (!isNaN(idParam)) {
+    if (!idParam) {
+      return res.status(400).json({ success: false, message: 'Valid product ID, barcode or QR code is required' });
+    }
+
+    // Safely check 32-bit integer primary key to prevent PostgreSQL integer out of range errors for 13-digit barcodes
+    const isSafeIntegerId = !isNaN(idParam) && Number(idParam) > 0 && Number(idParam) <= 2147483647 && Number.isInteger(Number(idParam));
+    if (isSafeIntegerId) {
       product = await Product.findByPk(idParam, {
         include: [{ model: Stock, as: 'stock' }]
       });
@@ -77,8 +83,8 @@ export const getProductById = async (req, res) => {
       product = await Product.findOne({
         where: {
           [Op.or]: [
-            { qrCode: idParam },
-            { barcode: idParam }
+            { barcode: idParam },
+            { qrCode: idParam }
           ]
         },
         include: [{ model: Stock, as: 'stock' }]
@@ -86,7 +92,12 @@ export const getProductById = async (req, res) => {
     }
 
     if (!product) {
-      return res.status(404).json({ success: false, message: 'Product not found with this ID or QR code' });
+      return res.status(404).json({
+        success: false,
+        notFound: true,
+        message: `Product not found with barcode/code "${idParam}"`,
+        code: idParam
+      });
     }
 
     const pJson = product.toJSON();
@@ -97,6 +108,7 @@ export const getProductById = async (req, res) => {
       product: {
         ...pJson,
         _id: pJson.id,
+        currentStock: stock ? Number(stock.currentQuantity) : 0,
         currentQuantity: stock ? Number(stock.currentQuantity) : 0,
         reorderThreshold: stock ? Number(stock.reorderThreshold) : Number(pJson.reorderThreshold || 20)
       }
@@ -105,6 +117,9 @@ export const getProductById = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
+export const getProductByCode = getProductById;
+
 
 // @route   POST /api/products
 // @desc    Create new product + create associated stock document

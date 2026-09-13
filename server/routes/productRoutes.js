@@ -2,6 +2,7 @@ import express from 'express';
 import {
   getProducts,
   getProductById,
+  getProductByCode,
   lookupBarcode,
   createProduct,
   updateProduct,
@@ -16,6 +17,7 @@ router.use(protect);
 
 router.get('/', getProducts);
 router.get('/lookup-barcode/:barcode', lookupBarcode);
+router.get('/code/:code', getProductByCode);
 router.get('/:id', getProductById);
 router.get('/:id/qr', generateQrCodeImage);
 

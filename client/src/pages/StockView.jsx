@@ -1,14 +1,16 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { 
   getStockLevelsApi, 
-  updateReorderThresholdApi 
+  updateReorderThresholdApi,
+  getProductByCodeApi,
+  quickStockInwardApi
 } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import Badge from '../components/common/Badge';
 import Modal from '../components/common/Modal';
-import QrScannerModal from '../components/common/QrScannerModal';
+import BarcodeScanner from '../components/common/BarcodeScanner';
 import { 
   Boxes, 
   Search, 
@@ -22,10 +24,18 @@ import {
   ShieldAlert,
   Calendar,
   Layers,
-  ScanBarcode
+  ScanBarcode,
+  Package,
+  CheckCircle2,
+  AlertCircle,
+  Truck,
+  DollarSign,
+  FileText,
+  Tag,
+  Sparkles,
+  ArrowRight
 } from 'lucide-react';
 import { DAIRY_CATEGORIES, getCategoryMeta } from '../utils/categories';
-import { FALLBACK_STOCKS } from '../utils/demoFallbackData';
 
 const StockView = () => {
   const [stocks, setStocks] = useState([]);
@@ -45,11 +55,37 @@ const StockView = () => {
   const { addToast } = useToast();
   const { isAdmin } = useAuth();
 
-  // Modal State for updating reorder threshold
+  // Threshold modal state
   const [selectedStockForThreshold, setSelectedStockForThreshold] = useState(null);
   const [newThreshold, setNewThreshold] = useState(20);
   const [savingThreshold, setSavingThreshold] = useState(false);
+
+  // Scanner & Stock Entry Modal State
   const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [isStockEntryOpen, setIsStockEntryOpen] = useState(false);
+  const [searchingProduct, setSearchingProduct] = useState(false);
+  const [submittingInward, setSubmittingInward] = useState(false);
+  const [matchedProduct, setMatchedProduct] = useState(null);
+  const [notFoundState, setNotFoundState] = useState(false);
+
+  const quantityInputRef = useRef(null);
+
+  // Stock Inward Form State
+  const [entryForm, setEntryForm] = useState({
+    productCode: '',
+    productId: '',
+    productName: '',
+    category: 'milk',
+    unit: 'litre',
+    quantity: 10,
+    costPrice: 28,
+    unitPrice: 34,
+    expiryDate: '',
+    batchNumber: '',
+    supplierName: 'Mother Dairy Plant / Direct',
+    invoiceNumber: '',
+    notes: ''
+  });
 
   useEffect(() => {
     fetchStockLevels();
@@ -97,6 +133,7 @@ const StockView = () => {
     }
   };
 
+  // Threshold update
   const handleOpenThresholdModal = (stock) => {
     setSelectedStockForThreshold(stock);
     setNewThreshold(stock.reorderThreshold || 20);
@@ -125,6 +162,150 @@ const StockView = () => {
     }
   };
 
+  // Open empty Stock Entry Form
+  const handleOpenStockEntry = () => {
+    const today = new Date();
+    const defaultExp = new Date(today.getTime() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    setMatchedProduct(null);
+    setNotFoundState(false);
+    setEntryForm({
+      productCode: '',
+      productId: '',
+      productName: '',
+      category: 'milk',
+      unit: 'litre',
+      quantity: 10,
+      costPrice: 28,
+      unitPrice: 34,
+      expiryDate: defaultExp,
+      batchNumber: `BCH-MD-${Date.now().toString().slice(-5)}`,
+      supplierName: 'Mother Dairy Plant / Direct',
+      invoiceNumber: '',
+      notes: ''
+    });
+    setIsStockEntryOpen(true);
+  };
+
+  // Lookup product by barcode or code string
+  const lookupProductByCode = async (codeToLookup) => {
+    const clean = (codeToLookup || '').trim();
+    if (!clean) return;
+
+    try {
+      setSearchingProduct(true);
+      setNotFoundState(false);
+
+      const res = await getProductByCodeApi(clean);
+
+      if (res.data?.success && res.data.product) {
+        const prod = res.data.product;
+        setMatchedProduct(prod);
+        setNotFoundState(false);
+
+        // Pre-fill form from matched product
+        const shelfDays = Number(prod.shelfLifeDays || 3);
+        const expDate = new Date(Date.now() + shelfDays * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        const catCode = (prod.category || 'MD').toUpperCase().slice(0, 3);
+
+        setEntryForm((prev) => ({
+          ...prev,
+          productCode: clean,
+          productId: prod._id || prod.id,
+          productName: prod.name,
+          category: prod.category || 'milk',
+          unit: prod.unit || 'pack',
+          costPrice: prod.costPrice || Math.round(Number(prod.unitPrice || 40) * 0.8),
+          unitPrice: prod.unitPrice || 40,
+          expiryDate: expDate,
+          batchNumber: `BCH-${catCode}-${Date.now().toString().slice(-5)}`,
+          notes: prod.barcode ? `Barcode: ${prod.barcode}` : prev.notes
+        }));
+
+        addToast(`Product Found: ${prod.name} (In stock: ${prod.currentStock || prod.currentQuantity || 0})`, 'success');
+
+        // Focus quantity input for immediate entry
+        setTimeout(() => {
+          quantityInputRef.current?.focus();
+          quantityInputRef.current?.select();
+        }, 150);
+      }
+    } catch (err) {
+      console.warn('Product lookup error:', err);
+      if (err.response?.status === 404 || err.response?.data?.notFound) {
+        setMatchedProduct(null);
+        setNotFoundState(true);
+        setEntryForm((prev) => ({
+          ...prev,
+          productCode: clean,
+          productId: '',
+          productName: `New Item (${clean})`,
+          notes: `Barcode: ${clean}`
+        }));
+        addToast(`Product with code "${clean}" not found in catalog. You can register it below.`, 'warning');
+      } else {
+        addToast('Failed to check product code. Please try again.', 'error');
+      }
+    } finally {
+      setSearchingProduct(false);
+    }
+  };
+
+  // Barcode / QR Scan success handler
+  const handleScanSuccess = (scannedCode) => {
+    setIsScannerOpen(false);
+    setIsStockEntryOpen(true);
+    setEntryForm((prev) => ({ ...prev, productCode: scannedCode }));
+    lookupProductByCode(scannedCode);
+  };
+
+  // Submit Stock Inward
+  const handleSubmitStockEntry = async (e) => {
+    e.preventDefault();
+
+    const numQty = Number(entryForm.quantity);
+    if (!numQty || numQty <= 0) {
+      addToast('Please enter a valid quantity greater than 0', 'warning');
+      return;
+    }
+
+    if (!entryForm.productName.trim()) {
+      addToast('Product name is required', 'warning');
+      return;
+    }
+
+    try {
+      setSubmittingInward(true);
+
+      const payload = {
+        productId: entryForm.productId || undefined,
+        barcode: entryForm.productCode || undefined,
+        productName: entryForm.productName.trim(),
+        name: entryForm.productName.trim(),
+        category: entryForm.category,
+        unit: entryForm.unit,
+        quantity: numQty,
+        costPrice: Number(entryForm.costPrice || 0),
+        unitPrice: Number(entryForm.unitPrice || 0),
+        expiryDate: entryForm.expiryDate,
+        batchNumber: entryForm.batchNumber || `BCH-${Date.now().toString().slice(-6)}`,
+        supplierName: entryForm.supplierName || 'Plant Direct',
+        invoiceNumber: entryForm.invoiceNumber,
+        notes: entryForm.notes
+      };
+
+      const res = await quickStockInwardApi(payload);
+
+      addToast(`+${numQty} ${entryForm.unit} added to ${entryForm.productName}!`, 'success');
+      setIsStockEntryOpen(false);
+      fetchStockLevels();
+    } catch (err) {
+      console.error('Stock inward error:', err);
+      addToast(err.response?.data?.message || 'Failed to record stock inward', 'error');
+    } finally {
+      setSubmittingInward(false);
+    }
+  };
+
   const displayedCategories = useMemo(() => {
     const presentCats = new Set((stocks || []).map(s => s?.productId?.category || s?.product?.category).filter(Boolean));
     if (presentCats.size === 0) {
@@ -142,11 +323,11 @@ const StockView = () => {
     const matchesSearch = 
       (product.name || '').toLowerCase().includes((searchQuery || '').toLowerCase()) ||
       (product.qrCode || '').toLowerCase().includes((searchQuery || '').toLowerCase()) ||
+      (product.barcode || '').toLowerCase().includes((searchQuery || '').toLowerCase()) ||
       (product.category || '').toLowerCase().includes((searchQuery || '').toLowerCase());
 
     return matchesCategory && matchesSearch;
   });
-
 
   return (
     <div className="space-y-6">
@@ -158,34 +339,37 @@ const StockView = () => {
             <span>Live Stock Inventory</span>
           </h1>
           <p className="text-xs text-slate-500 mt-1">
-            Current on-hand inventory balances auto-updated via Purchases, Sales, and Production.
+            Current on-hand inventory balances auto-updated via Purchases, Sales, and Barcode Scans.
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Scan Product Barcode Button (Opens ZXing Camera Scanner) */}
           <button
             onClick={() => setIsScannerOpen(true)}
-            className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-black shadow-sm transition-all hover:scale-105 active:scale-95 flex items-center gap-1.5 border border-emerald-600/40"
-            title="Scan barcode to auto-fill price, expiry and add quantity"
+            className="px-4 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-black shadow-sm transition-all hover:scale-105 active:scale-95 flex items-center gap-2 border border-emerald-600/40"
+            title="Scan 1D barcode or QR code with mobile camera"
           >
             <ScanBarcode className="w-4 h-4 text-emerald-300" />
-            <span>+ Barcode Scan Inward</span>
+            <span>Scan Product</span>
           </button>
 
-          <Link
-            to="/purchases"
-            className="px-4 py-2 bg-[#0B4F9C] hover:bg-[#083D7A] text-white rounded-xl text-xs font-bold shadow-sm transition-all hover:scale-105 active:scale-95 flex items-center gap-1.5"
+          {/* Manual Stock Entry Modal Button */}
+          <button
+            onClick={handleOpenStockEntry}
+            className="px-4 py-2.5 bg-[#0B4F9C] hover:bg-[#083D7A] text-white rounded-xl text-xs font-bold shadow-sm transition-all hover:scale-105 active:scale-95 flex items-center gap-1.5"
+            title="Open stock inward form"
           >
             <Plus className="w-3.5 h-3.5" />
-            <span>+ Procure Stock</span>
-          </Link>
+            <span>+ Stock Inward</span>
+          </button>
 
           <button
             onClick={fetchStockLevels}
-            className="p-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl transition-colors"
+            className="p-2.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl transition-colors shadow-2xs"
             title="Refresh stocks"
           >
-            <RefreshCw className="w-4 h-4" />
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-[#0B4F9C]' : ''}`} />
           </button>
         </div>
       </div>
@@ -200,223 +384,523 @@ const StockView = () => {
           </div>
 
           <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total Stock Valuation</span>
-            <div className="text-xl font-black text-emerald-700 mt-0.5">₹{summary.totalValue?.toLocaleString()}</div>
-            <span className="text-[10px] text-slate-500">Cost: ₹{summary.totalCostValue?.toLocaleString()}</span>
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Stock Valuation</span>
+            <div className="text-xl font-black text-emerald-700 mt-0.5">
+              ₹{(summary.totalValue || 0).toLocaleString()}
+            </div>
+            <span className="text-[10px] text-slate-500">Retail Sales Value</span>
           </div>
 
           <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Low Stock Alert</span>
-            <div className="text-xl font-black text-amber-600 mt-0.5">{summary.lowStockCount} Items</div>
-            <span className="text-[10px] text-amber-700 font-bold">Below Threshold</span>
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Low Stock Alerts</span>
+            <div className={`text-xl font-black mt-0.5 ${summary.lowStockCount > 0 ? 'text-amber-600' : 'text-slate-800'}`}>
+              {summary.lowStockCount} Items
+            </div>
+            <span className="text-[10px] text-slate-500">Below Reorder Level</span>
           </div>
 
           <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs">
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Out of Stock</span>
-            <div className="text-xl font-black text-rose-600 mt-0.5">{summary.outOfStockCount} Items</div>
-            <span className="text-[10px] text-rose-700 font-bold">0 Units Available</span>
+            <div className={`text-xl font-black mt-0.5 ${summary.outOfStockCount > 0 ? 'text-rose-600' : 'text-slate-800'}`}>
+              {summary.outOfStockCount || 0} Items
+            </div>
+            <span className="text-[10px] text-slate-500">Zero On-Hand Balance</span>
           </div>
         </div>
       )}
 
-      {/* 3. Filter & Search Controls */}
-      <div className="bg-white p-4 rounded-3xl border border-slate-200/80 shadow-sm space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          {/* Search Box */}
-          <div className="relative flex-1 min-w-[240px] max-w-md">
+      {/* 3. Search, Category Filter & Low Stock Banner */}
+      <div className="space-y-3">
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1">
             <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
-              placeholder="Search product name, category or QR code..."
+              placeholder="Search by product name, barcode (e.g. 890...), or QR code..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-[#FAF8F5] border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0B4F9C]"
+              className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0B4F9C] shadow-2xs"
             />
           </div>
 
-          {/* Low Stock Toggle Switch */}
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setLowStockFilter(!lowStockFilter)}
-              className={`px-3 py-2 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 ${
-                lowStockFilter
-                  ? 'bg-amber-500 text-white shadow-sm'
-                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-              }`}
-            >
-              <AlertTriangle className="w-3.5 h-3.5" />
-              <span>Low Stock Alerts Only</span>
-            </button>
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
+            {displayedCategories.map((cat) => (
+              <button
+                key={cat.id}
+                onClick={() => setCategoryFilter(cat.id)}
+                className={`px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 ${
+                  categoryFilter === cat.id
+                    ? 'bg-[#0B4F9C] text-white shadow-xs'
+                    : 'bg-white hover:bg-slate-100 text-slate-600 border border-slate-200'
+                }`}
+              >
+                <span>{cat.icon}</span>
+                <span>{cat.label}</span>
+              </button>
+            ))}
           </div>
         </div>
 
-        {/* Category Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pt-1 pb-1">
-          {displayedCategories.map((cat) => (
+        {lowStockFilter && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-center justify-between">
+            <div className="flex items-center gap-2 text-amber-800 text-xs font-bold">
+              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+              <span>Filtering by Low Stock Items Only</span>
+            </div>
             <button
-              key={cat.id}
-              onClick={() => setCategoryFilter(cat.id)}
-              className={`px-3 py-1.5 rounded-xl text-[11px] font-bold whitespace-nowrap transition-all flex items-center gap-1.5 ${
-                categoryFilter === cat.id
-                  ? 'bg-[#0B4F9C] text-white shadow-xs font-black'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
+              onClick={() => setSearchParams({})}
+              className="text-xs text-amber-900 underline font-semibold hover:text-amber-700"
             >
-              <span>{cat.icon}</span>
-              <span>{cat.id === 'All' ? 'All' : cat.label}</span>
+              Clear Filter
             </button>
-          ))}
-        </div>
+          </div>
+        )}
       </div>
 
-      {/* 4. Live Stock Table */}
-      {loading ? (
-        <div className="bg-white rounded-3xl p-12 text-center text-slate-400 animate-pulse">
-          Loading live stock records...
-        </div>
-      ) : filteredStocks.length === 0 ? (
-        <div className="bg-white rounded-3xl p-12 text-center border border-slate-200 shadow-sm space-y-2">
-          <Boxes className="w-10 h-10 text-slate-300 mx-auto" />
-          <h3 className="font-extrabold text-sm text-slate-700">No Matching Stock Items</h3>
-          <p className="text-xs text-slate-400">Try adjusting your search filter or category selection.</p>
-        </div>
-      ) : (
-        <div className="bg-white rounded-3xl border border-slate-200/90 shadow-soft overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-[#FAF8F5] text-slate-500 uppercase text-[10px] tracking-wider border-b border-slate-200">
+      {/* 4. Products Stock Table */}
+      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-slate-50/75 border-b border-slate-200/80 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                <th className="py-3 px-4">Product</th>
+                <th className="py-3 px-4">Category</th>
+                <th className="py-3 px-4">On-Hand Stock</th>
+                <th className="py-3 px-4">Unit Price</th>
+                <th className="py-3 px-4">Status</th>
+                <th className="py-3 px-4 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 text-xs text-slate-700 font-medium">
+              {loading ? (
                 <tr>
-                  <th className="py-3.5 px-4 font-black">Product Details</th>
-                  <th className="py-3.5 px-4 font-black">Category</th>
-                  <th className="py-3.5 px-4 font-black">QR Code</th>
-                  <th className="py-3.5 px-4 font-black">Price / Unit</th>
-                  <th className="py-3.5 px-4 font-black">Current Stock</th>
-                  <th className="py-3.5 px-4 font-black">Status</th>
-                  <th className="py-3.5 px-4 font-black">Reorder Level</th>
-                  <th className="py-3.5 px-4 font-black text-right">Quick Actions</th>
+                  <td colSpan="6" className="py-12 text-center text-slate-400">
+                    <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-[#0B4F9C]" />
+                    <span>Loading live stock inventory...</span>
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 font-medium">
-                {filteredStocks.map((stock) => {
-                  const product = stock.productId;
+              ) : filteredStocks.length === 0 ? (
+                <tr>
+                  <td colSpan="6" className="py-12 text-center text-slate-400">
+                    <Boxes className="w-8 h-8 mx-auto mb-2 text-slate-300" />
+                    <p className="font-bold text-slate-600">No stock records found</p>
+                    <p className="text-[11px] text-slate-400 mt-1">Try changing your search filter or scan a barcode to add stock.</p>
+                  </td>
+                </tr>
+              ) : (
+                filteredStocks.map((stock) => {
+                  const product = stock?.productId || stock?.product;
+                  if (!product) return null;
                   const catMeta = getCategoryMeta(product.category);
-                  const isLow = stock.currentQuantity <= stock.reorderThreshold;
-                  const isOut = stock.currentQuantity === 0;
-                  const percent = Math.min(100, Math.round((stock.currentQuantity / (stock.reorderThreshold * 2 || 40)) * 100));
+                  const isLow = Number(stock.currentQuantity) <= Number(stock.reorderThreshold);
+                  const isOut = Number(stock.currentQuantity) === 0;
 
                   return (
-                    <tr key={stock._id} className="hover:bg-blue-50/30 transition-colors">
-                      {/* Product Name */}
+                    <tr key={stock.id || stock._id} className="hover:bg-slate-50/80 transition-colors">
                       <td className="py-3.5 px-4">
-                        <div className="font-bold text-slate-900 text-xs sm:text-sm">{product.name}</div>
-                        <div className="text-[10px] text-slate-400">Shelf life: {product.shelfLifeDays || 3} days</div>
+                        <div className="font-bold text-slate-900">{product.name}</div>
+                        <div className="text-[10px] text-slate-400 flex items-center gap-2 mt-0.5">
+                          {product.barcode && (
+                            <span className="font-mono bg-slate-100 px-1.5 py-0.5 rounded text-slate-600">
+                              Barcode: {product.barcode}
+                            </span>
+                          )}
+                          <span className="font-mono text-slate-500">QR: {product.qrCode}</span>
+                        </div>
                       </td>
 
-                      {/* Category */}
                       <td className="py-3.5 px-4">
-                        <span className="font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md text-[10px] inline-flex items-center gap-1">
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold ${catMeta.bgClass} ${catMeta.colorClass}`}>
                           <span>{catMeta.icon}</span>
-                          <span>{catMeta.label || product.category}</span>
+                          <span>{catMeta.label}</span>
                         </span>
                       </td>
 
-
-                      {/* QR Code */}
-                      <td className="py-3.5 px-4 font-mono font-bold text-dairy-blue text-[11px]">
-                        {product.qrCode}
-                      </td>
-
-                      {/* Pricing */}
                       <td className="py-3.5 px-4">
-                        <span className="font-black text-slate-900">₹{product.unitPrice}</span>
-                        <span className="text-[10px] text-slate-400 block">Cost: ₹{product.costPrice || 0}</span>
-                      </td>
-
-                      {/* Current Quantity with progress indicator */}
-                      <td className="py-3.5 px-4">
-                        <div className="flex items-center gap-2">
-                          <span className={`text-sm font-black ${isOut ? 'text-rose-600' : isLow ? 'text-amber-600' : 'text-emerald-700'}`}>
-                            {stock.currentQuantity} {product.unit}
-                          </span>
+                        <div className="font-black text-sm text-slate-900">
+                          {stock.currentQuantity} {product.unit}
                         </div>
-                        {/* Mini visual stock bar */}
-                        <div className="w-24 h-1.5 bg-slate-100 rounded-full mt-1 overflow-hidden">
-                          <div
-                            className={`h-full rounded-full ${isOut ? 'bg-rose-500' : isLow ? 'bg-amber-500' : 'bg-emerald-500'}`}
-                            style={{ width: `${percent}%` }}
-                          ></div>
+                        <div className="text-[10px] text-slate-400">
+                          Alert Threshold: {stock.reorderThreshold} {product.unit}
                         </div>
                       </td>
 
-                      {/* Stock Status Badge */}
+                      <td className="py-3.5 px-4">
+                        <div className="font-bold text-slate-900">₹{product.unitPrice}</div>
+                        <div className="text-[10px] text-slate-400">Cost: ₹{product.costPrice || Math.round(product.unitPrice * 0.8)}</div>
+                      </td>
+
                       <td className="py-3.5 px-4">
                         {isOut ? (
                           <Badge variant="danger">Out of Stock</Badge>
                         ) : isLow ? (
-                          <Badge variant="warning">Low Stock</Badge>
+                          <Badge variant="warning">Low Stock Alert</Badge>
                         ) : (
-                          <Badge variant="success">Healthy</Badge>
+                          <Badge variant="success">Normal</Badge>
                         )}
                       </td>
 
-                      {/* Reorder Threshold */}
-                      <td className="py-3.5 px-4">
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-bold text-slate-700">{stock.reorderThreshold} {product.unit}</span>
+                      <td className="py-3.5 px-4 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          {/* Quick Inward for this product */}
+                          <button
+                            onClick={() => {
+                              setMatchedProduct(product);
+                              setNotFoundState(false);
+                              const shelfDays = Number(product.shelfLifeDays || 3);
+                              const expDate = new Date(Date.now() + shelfDays * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+                              const catCode = (product.category || 'MD').toUpperCase().slice(0, 3);
+                              setEntryForm({
+                                productCode: product.barcode || product.qrCode || String(product.id),
+                                productId: product._id || product.id,
+                                productName: product.name,
+                                category: product.category || 'milk',
+                                unit: product.unit || 'pack',
+                                quantity: 10,
+                                costPrice: product.costPrice || Math.round(Number(product.unitPrice || 40) * 0.8),
+                                unitPrice: product.unitPrice || 40,
+                                expiryDate: expDate,
+                                batchNumber: `BCH-${catCode}-${Date.now().toString().slice(-5)}`,
+                                supplierName: 'Mother Dairy Plant / Direct',
+                                invoiceNumber: '',
+                                notes: ''
+                              });
+                              setIsStockEntryOpen(true);
+                            }}
+                            className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg text-[11px] font-bold transition-colors"
+                            title="Add stock for this product"
+                          >
+                            + Inward
+                          </button>
+
+                          {/* Reorder Threshold Editor */}
                           {isAdmin && (
                             <button
                               onClick={() => handleOpenThresholdModal(stock)}
-                              className="p-1 text-slate-400 hover:text-[#0B4F9C] transition-colors"
-                              title="Edit reorder threshold"
+                              className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors"
+                              title="Set alert reorder threshold"
                             >
-                              <Edit3 className="w-3 h-3" />
+                              <Edit3 className="w-3.5 h-3.5" />
                             </button>
                           )}
                         </div>
                       </td>
-
-                      {/* Actions */}
-                      <td className="py-3.5 px-4 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <Link
-                            to={`/purchases?product=${product._id}`}
-                            className="p-1.5 bg-blue-50 hover:bg-blue-100 text-[#0B4F9C] rounded-lg transition-colors font-bold text-[11px] flex items-center gap-1"
-                            title="Procure item"
-                          >
-                            <Plus className="w-3.5 h-3.5" />
-                            <span>Procure</span>
-                          </Link>
-
-                          <Link
-                            to={`/sales?product=${product._id}`}
-                            className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg transition-colors font-bold text-[11px] flex items-center gap-1"
-                            title="Sell item"
-                          >
-                            <ShoppingCart className="w-3.5 h-3.5" />
-                            <span>Sell</span>
-                          </Link>
-                        </div>
-                      </td>
                     </tr>
                   );
-                })}
-              </tbody>
-            </table>
-          </div>
+                })
+              )}
+            </tbody>
+          </table>
         </div>
-      )}
+      </div>
 
-      {/* 5. Edit Reorder Threshold Modal (Admin Only) */}
+      {/* 5. Stock Inward Entry Form Modal (Auto-populated upon barcode scan) */}
       <Modal
-        isOpen={!!selectedStockForThreshold}
+        isOpen={isStockEntryOpen}
+        onClose={() => setIsStockEntryOpen(false)}
+        title="Stock Inward Entry"
+        size="lg"
+      >
+        <form onSubmit={handleSubmitStockEntry} className="space-y-4">
+          {/* Barcode / Product Code Top Action Bar */}
+          <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                <Tag className="w-3.5 h-3.5 text-[#0B4F9C]" />
+                <span>Scanned Barcode / Product Code</span>
+              </label>
+
+              {/* Scan Barcode Button */}
+              <button
+                type="button"
+                onClick={() => setIsScannerOpen(true)}
+                className="px-3 py-1 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors shadow-2xs"
+              >
+                <ScanBarcode className="w-3.5 h-3.5 text-emerald-300" />
+                <span>Scan with Camera</span>
+              </button>
+            </div>
+
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={entryForm.productCode}
+                onChange={(e) => setEntryForm({ ...entryForm, productCode: e.target.value })}
+                placeholder="Enter or scan barcode (e.g. 8901648001018)..."
+                className="flex-1 px-3.5 py-2 bg-white border border-slate-300 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0B4F9C]"
+              />
+              <button
+                type="button"
+                onClick={() => lookupProductByCode(entryForm.productCode)}
+                disabled={searchingProduct || !entryForm.productCode.trim()}
+                className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-colors flex items-center gap-1"
+              >
+                {searchingProduct ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <span>Lookup</span>}
+              </button>
+            </div>
+
+            {/* Matched Product Found Preview Card */}
+            {matchedProduct && (
+              <div className="mt-2 p-3 bg-emerald-50/80 border border-emerald-200 rounded-xl flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-black">
+                    <CheckCircle2 className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-emerald-900">{matchedProduct.name}</h4>
+                    <p className="text-[10px] text-emerald-700">
+                      Category: <span className="font-semibold">{matchedProduct.category}</span> • 
+                      Current Stock: <span className="font-black">{matchedProduct.currentStock || matchedProduct.currentQuantity || 0} {matchedProduct.unit}</span>
+                    </p>
+                  </div>
+                </div>
+
+                <div className="text-right">
+                  <span className="text-[10px] text-slate-500 block">Unit Selling Price</span>
+                  <span className="text-xs font-bold text-slate-900">₹{matchedProduct.unitPrice}</span>
+                </div>
+              </div>
+            )}
+
+            {/* Not Found Banner with Prompt to Register as New Product */}
+            {notFoundState && (
+              <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2.5">
+                <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+                <div className="text-xs text-amber-900">
+                  <span className="font-bold">Product Not In Catalog:</span> No product matches barcode "{entryForm.productCode}". 
+                  Please enter the product details below to register it and add initial stock.
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Product Details Section (editable for new products, read-only/verified for matched products) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-1">
+                Product Name *
+              </label>
+              <input
+                type="text"
+                required
+                value={entryForm.productName}
+                onChange={(e) => setEntryForm({ ...entryForm, productName: e.target.value })}
+                placeholder="e.g. Mother Dairy Full Cream Milk (1L)"
+                className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0B4F9C]"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-1">
+                  Category *
+                </label>
+                <select
+                  value={entryForm.category}
+                  onChange={(e) => setEntryForm({ ...entryForm, category: e.target.value })}
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0B4F9C]"
+                >
+                  {DAIRY_CATEGORIES.filter(c => c.id !== 'All').map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.icon} {c.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-1">
+                  Unit *
+                </label>
+                <select
+                  value={entryForm.unit}
+                  onChange={(e) => setEntryForm({ ...entryForm, unit: e.target.value })}
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0B4F9C]"
+                >
+                  <option value="litre">Litre (L)</option>
+                  <option value="pack">Pack</option>
+                  <option value="kg">Kilogram (kg)</option>
+                  <option value="gram">Gram (g)</option>
+                  <option value="piece">Piece</option>
+                  <option value="bottle">Bottle</option>
+                  <option value="cup">Cup</option>
+                  <option value="tin">Tin</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Manual Entry Fields: Quantity & Expiry Date */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-emerald-50/50 border border-emerald-100 rounded-2xl">
+            <div>
+              <label className="text-[11px] font-black text-emerald-900 uppercase tracking-wider block mb-1 flex items-center justify-between">
+                <span>Quantity to Add *</span>
+                <span className="text-[10px] text-emerald-700 font-normal">Manually entered</span>
+              </label>
+              <div className="relative">
+                <input
+                  ref={quantityInputRef}
+                  type="number"
+                  min="1"
+                  step="1"
+                  required
+                  value={entryForm.quantity}
+                  onChange={(e) => setEntryForm({ ...entryForm, quantity: e.target.value })}
+                  placeholder="Enter quantity..."
+                  className="w-full px-3.5 py-2.5 bg-white border-2 border-emerald-500 rounded-xl text-base font-black text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                />
+                <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-emerald-800">
+                  {entryForm.unit}
+                </span>
+              </div>
+            </div>
+
+            <div>
+              <label className="text-[11px] font-black text-emerald-900 uppercase tracking-wider block mb-1 flex items-center justify-between">
+                <span>Expiry Date *</span>
+                <span className="text-[10px] text-emerald-700 font-normal">Manually verified</span>
+              </label>
+              <div className="relative">
+                <Calendar className="w-4 h-4 text-emerald-600 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  type="date"
+                  required
+                  value={entryForm.expiryDate}
+                  onChange={(e) => setEntryForm({ ...entryForm, expiryDate: e.target.value })}
+                  className="w-full pl-9 pr-3.5 py-2.5 bg-white border-2 border-emerald-500 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Pricing & Batch Details */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-1">
+                Batch Number
+              </label>
+              <input
+                type="text"
+                value={entryForm.batchNumber}
+                onChange={(e) => setEntryForm({ ...entryForm, batchNumber: e.target.value })}
+                placeholder="e.g. BCH-MIL-10293"
+                className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0B4F9C]"
+              />
+            </div>
+
+            <div>
+              <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-1">
+                Cost Price (₹)
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="0.5"
+                value={entryForm.costPrice}
+                onChange={(e) => setEntryForm({ ...entryForm, costPrice: e.target.value })}
+                placeholder="Purchase price per unit"
+                className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0B4F9C]"
+              />
+            </div>
+
+            <div>
+              <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-1">
+                Selling Price (₹)
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="0.5"
+                value={entryForm.unitPrice}
+                onChange={(e) => setEntryForm({ ...entryForm, unitPrice: e.target.value })}
+                placeholder="Retail price per unit"
+                className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0B4F9C]"
+              />
+            </div>
+          </div>
+
+          {/* Supplier & Notes */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-1">
+                Supplier / Source
+              </label>
+              <div className="relative">
+                <Truck className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={entryForm.supplierName}
+                  onChange={(e) => setEntryForm({ ...entryForm, supplierName: e.target.value })}
+                  placeholder="e.g. Mother Dairy Plant Delivery"
+                  className="w-full pl-8 pr-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0B4F9C]"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-1">
+                Invoice / Challan No.
+              </label>
+              <div className="relative">
+                <FileText className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={entryForm.invoiceNumber}
+                  onChange={(e) => setEntryForm({ ...entryForm, invoiceNumber: e.target.value })}
+                  placeholder="e.g. INV-2026-0901"
+                  className="w-full pl-8 pr-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0B4F9C]"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex gap-2 pt-2 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => setIsStockEntryOpen(false)}
+              className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={submittingInward || !entryForm.quantity}
+              className="flex-2 py-2.5 bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 text-white rounded-xl text-xs font-black shadow-md shadow-emerald-700/20 transition-all flex items-center justify-center gap-1.5"
+            >
+              {submittingInward ? (
+                <>
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  <span>Adding to Stock...</span>
+                </>
+              ) : (
+                <>
+                  <Plus className="w-4 h-4" />
+                  <span>Confirm Stock Inward (+{entryForm.quantity || 0} {entryForm.unit})</span>
+                </>
+              )}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* 6. Threshold Modal */}
+      <Modal
+        isOpen={Boolean(selectedStockForThreshold)}
         onClose={() => setSelectedStockForThreshold(null)}
-        title="Set Stock Reorder Threshold"
-        subtitle={`Configure the minimum safe buffer for ${selectedStockForThreshold?.productId?.name}`}
-        icon={<AlertTriangle className="w-5 h-5 text-amber-500" />}
+        title="Set Reorder Alert Threshold"
+        size="sm"
       >
         <form onSubmit={handleSaveThreshold} className="space-y-4">
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">
+            <div className="text-xs font-bold text-slate-800 mb-1">
+              {selectedStockForThreshold?.productId?.name || 'Product'}
+            </div>
+            <p className="text-xs text-slate-500 mb-3">
+              Current stock on hand: <span className="font-bold text-slate-900">{selectedStockForThreshold?.currentQuantity}</span>
+            </p>
+
+            <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-1">
               Minimum Quantity Alert Trigger
             </label>
             <input
@@ -451,14 +935,13 @@ const StockView = () => {
         </form>
       </Modal>
 
-      {/* Barcode Scanner & Quick Stock Inward Modal */}
-      <QrScannerModal
+      {/* 7. Modular ZXing Barcode & QR Camera Scanner */}
+      <BarcodeScanner
         isOpen={isScannerOpen}
         onClose={() => setIsScannerOpen(false)}
-        mode="inward"
-        onStockAdded={() => {
-          fetchStockLevels();
-        }}
+        onScan={handleScanSuccess}
+        title="Scan Product Barcode"
+        subtitle="Align product 1D barcode or QR code with the frame"
       />
     </div>
   );
