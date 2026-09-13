@@ -2,6 +2,7 @@ import express from 'express';
 import {
   getProducts,
   getProductById,
+  lookupBarcode,
   createProduct,
   updateProduct,
   deleteProduct,
@@ -14,8 +15,10 @@ const router = express.Router();
 router.use(protect);
 
 router.get('/', getProducts);
+router.get('/lookup-barcode/:barcode', lookupBarcode);
 router.get('/:id', getProductById);
 router.get('/:id/qr', generateQrCodeImage);
+
 
 // Admin-only mutations
 router.post('/', requireAdmin, createProduct);

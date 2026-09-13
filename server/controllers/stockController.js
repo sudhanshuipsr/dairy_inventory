@@ -151,8 +151,8 @@ export const quickStockInward = async (req, res) => {
 
     if (!product) {
       const cleanCode = (barcode || '').toString().trim();
-      const prodName = req.body.productName || req.body.name || (cleanCode ? `Retail Item (${cleanCode})` : 'New Scanned Item');
-      const uPrice = Number(req.body.unitPrice) || (costPrice ? Math.round(Number(costPrice) * 1.25) : 90);
+      const prodName = req.body.productName || req.body.name || (cleanCode ? `Item (${cleanCode})` : 'New Scanned Item');
+      const uPrice = Number(req.body.unitPrice) || (costPrice ? Math.round(Number(costPrice) * 1.25) : 50);
       const cPrice = costPrice !== undefined && costPrice !== '' ? Number(costPrice) : Math.round(uPrice * 0.8);
       product = await Product.create({
         name: prodName,
@@ -162,7 +162,7 @@ export const quickStockInward = async (req, res) => {
         costPrice: cPrice,
         barcode: cleanCode || null,
         qrCode: `MD-${cleanCode || Date.now().toString().slice(-6)}`,
-        shelfLifeDays: Number(req.body.shelfLifeDays) || 90,
+        shelfLifeDays: Number(req.body.shelfLifeDays) || 60,
         reorderThreshold: 15,
         isActive: true
       });
@@ -177,7 +177,7 @@ export const quickStockInward = async (req, res) => {
     const userId = req.user?.id || req.user?._id || 1;
 
     // Calculate expiry date if not provided (Today + shelfLifeDays)
-    const shelfDays = Number(product.shelfLifeDays || 3);
+    const shelfDays = Number(product.shelfLifeDays || 30);
     const calculatedExpiry = expiryDate && expiryDate.trim()
       ? new Date(expiryDate)
       : new Date(now.getTime() + shelfDays * 24 * 60 * 60 * 1000);
@@ -188,7 +188,8 @@ export const quickStockInward = async (req, res) => {
 
     const supplier = supplierName && supplierName.trim()
       ? supplierName.trim()
-      : 'Mother Dairy Barcode Inward';
+      : (product.brand ? `${product.brand} Distributor` : `${product.name.split(' ')[0]} Direct Supplier`);
+
 
     // 1. Create Purchase Inward record
     const purchase = await Purchase.create({
