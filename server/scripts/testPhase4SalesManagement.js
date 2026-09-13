@@ -7,7 +7,7 @@ const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.join(__dirname, '../.env') });
 
 const PORT = process.env.PORT || 5000;
-const BASE_URL = `http://localhost:${PORT}/api`;
+const BASE_URL = process.env.API_URL || `http://localhost:${PORT}/api`;
 
 let adminToken = '';
 let staffToken = '';
