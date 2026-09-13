@@ -28,13 +28,12 @@ import {
   MEASUREMENT_UNITS, 
   getCategoryMeta 
 } from '../utils/categories';
-import { FALLBACK_PRODUCTS } from '../utils/demoFallbackData';
 
 const ProductManagement = () => {
   const { isAdmin } = useAuth();
   const { addToast } = useToast();
 
-  const [products, setProducts] = useState(FALLBACK_PRODUCTS);
+  const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('All');

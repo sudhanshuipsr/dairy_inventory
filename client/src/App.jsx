@@ -49,11 +49,9 @@ function App() {
               {/* Accessible by Staff & Admin (Role-guarded internally for actions) */}
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/products" element={<ProductManagement />} />
-              <Route path="/suppliers" element={<SupplierManagement />} />
               <Route path="/stock" element={<StockView />} />
               <Route path="/purchases" element={<Purchases />} />
               <Route path="/sales" element={<Sales />} />
-              <Route path="/production" element={<Production />} />
               <Route path="/expiry" element={<ExpiryBatches />} />
 
               {/* Accessible by Admin Only */}

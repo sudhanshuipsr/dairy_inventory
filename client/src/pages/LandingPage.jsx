@@ -104,15 +104,17 @@ const LandingPage = () => {
       <header className="sticky top-0 z-50 bg-[#ffffff]/90 backdrop-blur-md border-b border-[#a0c396]/30 shadow-xs transition-all">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-3 group">
-            <div className="w-10 h-10 rounded-2xl bg-[#1e3a1e] text-[#f8f5f0] flex items-center justify-center text-lg shadow-md group-hover:scale-105 transition-transform">
-              🥛
-            </div>
+            <img 
+              src="/logo.png" 
+              alt="Mother Dairy Rajajipuram" 
+              className="w-11 h-11 object-contain rounded-full shadow-md border border-[#a0c396]/40 group-hover:scale-105 transition-transform" 
+            />
             <div>
               <span className="font-serif text-xl sm:text-2xl font-bold tracking-tight text-[#1e3a1e] block leading-none">
                 Mother Dairy
               </span>
-              <span className="text-[10px] font-bold text-[#6a9c6a] uppercase tracking-widest block mt-0.5">
-                Fresh & Pure Outlet ERP
+              <span className="text-[10px] font-bold text-[#2d4a2d] uppercase tracking-widest block mt-0.5">
+                Rajajipuram Outlet ERP
               </span>
             </div>
           </Link>

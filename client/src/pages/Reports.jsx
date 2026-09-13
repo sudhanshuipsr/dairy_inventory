@@ -6,7 +6,6 @@ import {
   exportReportCsvApi,
   getExportCsvUrl 
 } from '../services/api';
-import { FALLBACK_ANALYTICS_REPORT, FALLBACK_PRODUCTS } from '../utils/demoFallbackData';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import Badge from '../components/common/Badge';
@@ -47,8 +46,8 @@ const Reports = () => {
   const { isAdmin } = useAuth();
   const { addToast } = useToast();
 
-  const [analytics, setAnalytics] = useState(FALLBACK_ANALYTICS_REPORT);
-  const [products, setProducts] = useState(FALLBACK_PRODUCTS);
+  const [analytics, setAnalytics] = useState(null);
+  const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(false);
 
   // Filters
@@ -94,10 +93,12 @@ const Reports = () => {
       const res = await getAnalyticsReportApi(params);
       if (res.data?.success && res.data?.summary) {
         setAnalytics(res.data);
+      } else {
+        setAnalytics(null);
       }
     } catch (error) {
-      console.warn('Using fallback financial analytics report');
-      setAnalytics(FALLBACK_ANALYTICS_REPORT);
+      console.warn('Analytics report fetch error:', error?.message);
+      setAnalytics(null);
     } finally {
       setLoading(false);
     }

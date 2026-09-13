@@ -46,14 +46,6 @@ const triggerHaptic = () => {
   } catch (e) {}
 };
 
-// Common demo barcodes for instant 1-click test simulation
-const QUICK_TEST_BARCODES = [
-  { code: '8901648001018', label: 'Mother Dairy Full Cream (1L)', icon: '🥛' },
-  { code: '8901262020015', label: 'Amul Butter (500g)', icon: '🧈' },
-  { code: '8904063251077', label: "Haldiram's Soan Papdi", icon: '🍬' },
-  { code: '8901058852468', label: 'Maggi Masala Noodles', icon: '🍜' },
-];
-
 /**
  * Reusable Mobile Barcode & QR Scanner component powered by ZXing.
  * Supports 1D barcodes (EAN-13, EAN-8, UPC, Code 128) and 2D QR codes.
@@ -508,30 +500,11 @@ const BarcodeScanner = ({
                 <button
                   type="submit"
                   disabled={!manualCode.trim()}
-                  className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:hover:bg-emerald-600 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 whitespace-nowrap"
+                  className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:hover:bg-emerald-600 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 whitespace-nowrap cursor-pointer"
                 >
                   <span>Submit Code</span>
                 </button>
               </form>
-            </div>
-
-            {/* Quick Test Barcode Buttons for immediate testing */}
-            <div>
-              <span className="text-[10px] text-slate-400 block mb-1 font-medium">Quick Test Barcodes:</span>
-              <div className="flex flex-wrap gap-1.5">
-                {QUICK_TEST_BARCODES.map((item) => (
-                  <button
-                    key={item.code}
-                    type="button"
-                    onClick={() => handleCodeDetected(item.code)}
-                    className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-[10px] font-medium flex items-center gap-1 transition-colors"
-                  >
-                    <span>{item.icon}</span>
-                    <span className="font-mono text-emerald-400">{item.code.slice(-6)}</span>
-                    <span className="text-slate-400 hidden sm:inline">({item.label.split(' ')[0]})</span>
-                  </button>
-                ))}
-              </div>
             </div>
           </div>
         </motion.div>

@@ -65,9 +65,13 @@ const Navbar = ({ onOpenMobileMenu, onOpenScanner }) => {
         </button>
 
         <div className="flex items-center gap-2">
-          <span className="w-2.5 h-2.5 rounded-full bg-[#6a9c6a] animate-pulse"></span>
+          <img 
+            src="/logo.png" 
+            alt="Mother Dairy" 
+            className="w-7 h-7 object-contain rounded-full shadow-2xs border border-[#a0c396]/40" 
+          />
           <span className="text-xs font-bold text-[#1e3a1e] tracking-tight hidden sm:inline">
-            Mother Dairy Live Outlet •
+            Mother Dairy Rajajipuram •
           </span>
           <span className="text-xs text-[#3f5a3f] font-medium">
             {today}

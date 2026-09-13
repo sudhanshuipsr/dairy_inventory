@@ -33,11 +33,9 @@ const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
   const navItems = [
     { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard, role: 'all' },
     { label: 'Product Catalog & QR', path: '/products', icon: Package, role: 'all' },
-    { label: 'Suppliers Directory', path: '/suppliers', icon: Building2, role: 'all' },
     { label: 'Live Stock', path: '/stock', icon: Boxes, role: 'all', badge: 'Auto' },
     { label: 'Purchases (Inward)', path: '/purchases', icon: ShoppingBag, role: 'all' },
     { label: 'Sales (Outward)', path: '/sales', icon: ShoppingCart, role: 'all' },
-    { label: 'Milk Production', path: '/production', icon: Factory, role: 'all' },
     { label: 'Expiry Batches', path: '/expiry', icon: Clock, role: 'all', badge: '3-Day' },
     // Admin Only Navigation Links
     { label: 'Customer Reviews', path: '/feedback-admin', icon: Star, role: 'admin', badge: '⭐ 4.9' },
@@ -46,8 +44,6 @@ const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
     { label: 'Staff Accounts', path: '/users', icon: Users, role: 'admin' },
     { label: 'Audit Trail Logs', path: '/audit-logs', icon: History, role: 'admin' }
   ];
-
-
 
   const filteredNav = navItems.filter((item) => item.role === 'all' || (item.role === 'admin' && isAdmin));
 
@@ -70,15 +66,17 @@ const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
         <div className="space-y-5">
           {/* Logo & Brand Header */}
           <div className="flex items-center gap-3 px-2 py-2">
-            <div className="w-10 h-10 rounded-2xl bg-[#1e3a1e] text-[#f8f5f0] flex items-center justify-center font-bold text-lg shadow-md shadow-[#1e3a1e]/15">
-              🥛
-            </div>
+            <img 
+              src="/logo.png" 
+              alt="Mother Dairy Rajajipuram" 
+              className="w-10 h-10 object-contain rounded-full shadow-sm shrink-0 border border-[#a0c396]/40" 
+            />
             <div>
               <div className="font-serif font-bold text-base text-[#1e3a1e] tracking-tight leading-none">
                 Mother Dairy
               </div>
-              <div className="text-[10px] text-[#6a9c6a] font-bold mt-0.5 uppercase tracking-wider">
-                Outlet ERP & POS
+              <div className="text-[10px] text-[#2d4a2d] font-bold mt-0.5 uppercase tracking-wider">
+                Rajajipuram Outlet
               </div>
             </div>
           </div>

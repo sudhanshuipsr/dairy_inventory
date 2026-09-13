@@ -46,15 +46,17 @@ const Login = () => {
       {/* Header Back Link */}
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center mb-6">
         <Link to="/" className="inline-flex items-center gap-3 group">
-          <div className="w-12 h-12 rounded-2xl bg-[#1e3a1e] text-[#f8f5f0] flex items-center justify-center text-2xl shadow-lg shadow-[#1e3a1e]/15 group-hover:scale-105 transition-transform">
-            🥛
-          </div>
+          <img 
+            src="/logo.png" 
+            alt="Mother Dairy Rajajipuram" 
+            className="w-14 h-14 object-contain rounded-full shadow-lg border-2 border-[#a0c396]/40 group-hover:scale-105 transition-transform" 
+          />
           <div className="text-left">
             <span className="font-serif font-bold text-2xl text-[#1e3a1e] leading-none block">
               Mother Dairy
             </span>
-            <span className="text-[10px] text-[#6a9c6a] font-bold uppercase tracking-widest block mt-0.5">
-              Fresh & Pure Outlet ERP
+            <span className="text-[10px] text-[#2d4a2d] font-bold uppercase tracking-widest block mt-0.5">
+              Rajajipuram Outlet ERP
             </span>
           </div>
         </Link>

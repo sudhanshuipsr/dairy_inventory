@@ -3,7 +3,7 @@ import { Outlet, Navigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import Sidebar from './Sidebar';
 import Navbar from './Navbar';
-import QrScannerModal from './QrScannerModal';
+import BarcodeScanner from './BarcodeScanner';
 import { useAuth } from '../../context/AuthContext';
 
 
@@ -13,19 +13,22 @@ const MainLayout = () => {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
 
-  // Global Quick Scan handler
+  // Global Quick Scan handler (navigates to sales with scanned barcode)
   const handleGlobalScan = (scannedCode) => {
-    window.location.href = `/purchases?qr=${encodeURIComponent(scannedCode)}`;
+    setIsScannerOpen(false);
+    window.location.href = `/sales?code=${encodeURIComponent(scannedCode)}`;
   };
 
   if (initialLoading) {
     return (
       <div className="min-h-screen bg-[#f4f8f2] flex items-center justify-center font-sans">
         <div className="text-center space-y-3">
-          <div className="w-14 h-14 rounded-3xl bg-[#1e3a1e] text-[#f8f5f0] flex items-center justify-center text-2xl animate-bounce mx-auto shadow-lg shadow-[#1e3a1e]/20">
-            🥛
-          </div>
-          <p className="text-xs font-bold text-[#1e3a1e]">Loading Mother Dairy Live Workspace...</p>
+          <img 
+            src="/logo.png" 
+            alt="Mother Dairy" 
+            className="w-16 h-16 object-contain rounded-full animate-bounce mx-auto shadow-lg border-2 border-[#a0c396]/40" 
+          />
+          <p className="text-xs font-bold text-[#1e3a1e]">Loading Mother Dairy Rajajipuram Workspace...</p>
         </div>
       </div>
     );
@@ -67,15 +70,13 @@ const MainLayout = () => {
         </main>
       </div>
 
-      {/* 3. Global Barcode Scanner & Quick Inward Modal */}
-      <QrScannerModal
+      {/* 3. Global Barcode & QR Scanner powered by ZXing */}
+      <BarcodeScanner
         isOpen={isScannerOpen}
         onClose={() => setIsScannerOpen(false)}
-        mode="inward"
-        onStockAdded={() => {
-          // Dispatch custom event so active pages (like StockView or Purchases) can auto-refresh
-          window.dispatchEvent(new CustomEvent('stock-updated'));
-        }}
+        onScan={handleGlobalScan}
+        title="ZXing Barcode & QR Scanner"
+        subtitle="Point camera at barcode to look up or add into sale/purchase"
       />
     </div>
   );

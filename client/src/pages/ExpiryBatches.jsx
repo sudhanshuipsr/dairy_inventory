@@ -7,7 +7,6 @@ import {
   deleteExpiryBatchApi, 
   getProductsApi 
 } from '../services/api';
-import { FALLBACK_EXPIRY_BATCHES, FALLBACK_EXPIRY_SUMMARY, FALLBACK_PRODUCTS } from '../utils/demoFallbackData';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import Modal from '../components/common/Modal';
@@ -32,9 +31,17 @@ const ExpiryBatches = () => {
   const { isAdmin } = useAuth();
   const { addToast } = useToast();
 
-  const [batches, setBatches] = useState(FALLBACK_EXPIRY_BATCHES);
-  const [summary, setSummary] = useState(FALLBACK_EXPIRY_SUMMARY);
-  const [products, setProducts] = useState(FALLBACK_PRODUCTS);
+  const [batches, setBatches] = useState([]);
+  const [summary, setSummary] = useState({
+    totalBatches: 0,
+    freshCount: 0,
+    nearExpiryCount: 0,
+    nearExpiryRiskUnits: 0,
+    expiredCount: 0,
+    expiredWastageUnits: 0,
+    discardedCount: 0
+  });
+  const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState(searchParams.get('nearExpiryOnly') === 'true' ? 'near-expiry' : 'all');
   const [searchQuery, setSearchQuery] = useState('');

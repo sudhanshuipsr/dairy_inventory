@@ -39,14 +39,15 @@ import {
   ShieldCheck,
   ArrowUpRight,
   ArrowDownRight,
-  SlidersHorizontal
+  SlidersHorizontal,
+  ScanBarcode
 } from 'lucide-react';
 import { 
   ResponsiveContainer, 
   AreaChart, 
   Area, 
-  LineChart,
-  Line,
+  LineChart, 
+  Line, 
   BarChart, 
   Bar, 
   XAxis, 
@@ -60,13 +61,7 @@ import {
   RadialBarChart,
   RadialBar
 } from 'recharts';
-import { 
-  FALLBACK_DASHBOARD_KPI,
-  FALLBACK_PRODUCTS,
-  FALLBACK_SALES,
-  FALLBACK_PURCHASES,
-  FALLBACK_EXPIRY_BATCHES
-} from '../utils/demoFallbackData';
+import BarcodeScanner from '../components/common/BarcodeScanner';
 
 const DONUT_COLORS = ['#1e3a1e', '#2d4a2d', '#3d6b3d', '#6a9c6a', '#d97706', '#be123c', '#0B4F9C'];
 
@@ -96,12 +91,30 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const searchInputRef = useRef(null);
 
-  const [stats, setStats] = useState(FALLBACK_DASHBOARD_KPI.kpis);
-  const [analytics, setAnalytics] = useState(FALLBACK_DASHBOARD_KPI);
-  const [products, setProducts] = useState(FALLBACK_PRODUCTS);
-  const [sales, setSales] = useState(FALLBACK_SALES);
-  const [purchases, setPurchases] = useState(FALLBACK_PURCHASES);
-  const [batches, setBatches] = useState(FALLBACK_EXPIRY_BATCHES);
+  const [stats, setStats] = useState({
+    totalProducts: 0,
+    totalStockUnits: 0,
+    lowStockCount: 0,
+    lowStockItems: [],
+    nearExpiryCount: 0,
+    nearExpiryBatches: [],
+    expiredCount: 0,
+    today: {
+      salesAmount: 0,
+      salesCount: 0,
+      purchasesAmount: 0,
+      purchasesCount: 0,
+      grossProfit: 0,
+      netProfit: 0
+    },
+    recentActivity: { sales: [], purchases: [] }
+  });
+  const [analytics, setAnalytics] = useState(null);
+  const [products, setProducts] = useState([]);
+  const [sales, setSales] = useState([]);
+  const [purchases, setPurchases] = useState([]);
+  const [batches, setBatches] = useState([]);
+  const [isBarcodeScannerOpen, setIsBarcodeScannerOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(new Date());
@@ -300,11 +313,16 @@ const Dashboard = () => {
     ? statData.recentActivity.purchases
     : (purchases || []);
 
-  // Stock health data for radial / gauge chart
+  // Dynamic Stock health data from live inventory
+  const healthyCount = (products || []).filter(p => Number(p.currentQuantity || 0) > Number(p.reorderThreshold || 10)).length;
+  const lowCount = (products || []).filter(p => Number(p.currentQuantity || 0) <= Number(p.reorderThreshold || 10) && Number(p.currentQuantity || 0) > 0).length;
+  const outCount = (products || []).filter(p => Number(p.currentQuantity || 0) === 0).length;
+  const totalCount = Math.max(1, (products || []).length);
+
   const stockHealthData = analytics?.stockHealth || [
-    { name: 'Healthy Stock', count: 20, percentage: 80, color: '#16a34a' },
-    { name: 'Low Stock', count: 4, percentage: 16, color: '#f59e0b' },
-    { name: 'Out of Stock', count: 1, percentage: 4, color: '#ef4444' }
+    { name: 'Healthy Stock', count: healthyCount, percentage: Math.round((healthyCount / totalCount) * 100), color: '#16a34a' },
+    { name: 'Low Stock', count: lowCount, percentage: Math.round((lowCount / totalCount) * 100), color: '#f59e0b' },
+    { name: 'Out of Stock', count: outCount, percentage: Math.round((outCount / totalCount) * 100), color: '#ef4444' }
   ];
 
   // Top selling products for animated horizontal bar chart
@@ -344,8 +362,8 @@ const Dashboard = () => {
           </p>
         </div>
 
-        {/* Action Controls: Range Selector + Refresh + Quick Sales Link */}
-        <div className="flex flex-wrap items-center gap-2.5">
+        {/* Action Controls: Range Selector + Refresh + Barcode Scanner + Purchase + Sales */}
+        <div className="flex flex-wrap items-center gap-2">
           {/* Global Date Range Selector */}
           <div className="flex items-center bg-[#f4f8f2] p-1 rounded-2xl border border-[#a0c396]/30 text-xs font-bold">
             {[
@@ -382,13 +400,34 @@ const Dashboard = () => {
             <span className="hidden sm:inline">{autoRefresh ? 'Live (60s)' : 'Paused'}</span>
           </button>
 
+          {/* Barcode Scanner Button (ZXing) */}
+          <button
+            onClick={() => setIsBarcodeScannerOpen(true)}
+            className="px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-[#1e3a1e] border border-[#a0c396]/60 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs hover:scale-102 active:scale-98"
+            title="Open ZXing Camera Barcode Scanner"
+          >
+            <ScanBarcode className="w-3.5 h-3.5 text-[#2d4a2d]" />
+            <span>Scan</span>
+          </button>
+
+          {/* New Purchase Quick Button */}
+          <Link
+            to="/purchases"
+            className="px-3.5 py-2 bg-blue-50 hover:bg-blue-100 text-[#0B4F9C] border border-blue-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 hover:scale-102 active:scale-98 shadow-2xs"
+            title="Record Inward Stock Purchase"
+          >
+            <ShoppingBag className="w-3.5 h-3.5 text-[#0B4F9C]" />
+            <span>New Purchase</span>
+          </Link>
+
           {/* New Sale Quick Button */}
           <Link
             to="/sales"
-            className="px-4 py-2 bg-[#1e3a1e] hover:bg-[#2d4a2d] text-white rounded-xl text-xs font-bold shadow-sm transition-all flex items-center gap-1.5 hover:scale-105 active:scale-95"
+            className="px-3.5 py-2 bg-[#1e3a1e] hover:bg-[#2d4a2d] text-white rounded-xl text-xs font-bold shadow-md shadow-[#1e3a1e]/15 transition-all flex items-center gap-1.5 hover:scale-102 active:scale-98"
+            title="Record Outward Sale & Issue Receipt"
           >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Record Sale</span>
+            <ShoppingCart className="w-3.5 h-3.5 text-[#9bc09b]" />
+            <span>New Sale</span>
           </Link>
         </div>
       </motion.div>
@@ -1267,6 +1306,18 @@ const Dashboard = () => {
           </div>
         </div>
       </motion.div>
+
+      {/* ZXing Camera Barcode / QR Scanner Modal */}
+      <BarcodeScanner
+        isOpen={isBarcodeScannerOpen}
+        onClose={() => setIsBarcodeScannerOpen(false)}
+        onScan={(code) => {
+          setIsBarcodeScannerOpen(false);
+          navigate(`/sales?code=${encodeURIComponent(code)}`);
+        }}
+        title="ZXing Barcode & QR Scanner"
+        subtitle="Point camera at product barcode to auto-detect and sell"
+      />
     </motion.div>
   );
 };
