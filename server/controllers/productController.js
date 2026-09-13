@@ -120,6 +120,61 @@ export const getProductById = async (req, res) => {
 
 export const getProductByCode = getProductById;
 
+// @route   GET /api/products/barcode/:code
+// @desc    Get single product by scanned barcode (1D EAN/UPC) or QR code
+// @access  Private
+export const getProductByBarcode = async (req, res) => {
+  try {
+    const code = (req.params.code || '').toString().trim();
+    if (!code) {
+      return res.status(400).json({ success: false, message: 'Valid barcode or QR code is required' });
+    }
+
+    let product = await Product.findOne({
+      where: {
+        [Op.or]: [
+          { barcode: code },
+          { qrCode: code },
+          { barcode: code.toUpperCase() },
+          { qrCode: code.toUpperCase() }
+        ]
+      },
+      include: [{ model: Stock, as: 'stock' }]
+    });
+
+    if (!product && !isNaN(code) && Number(code) > 0 && Number(code) <= 2147483647 && Number.isInteger(Number(code))) {
+      product = await Product.findByPk(Number(code), {
+        include: [{ model: Stock, as: 'stock' }]
+      });
+    }
+
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        notFound: true,
+        message: `Product not found with barcode "${code}"`,
+        code
+      });
+    }
+
+    const pJson = product.toJSON();
+    const stock = pJson.stock;
+
+    res.status(200).json({
+      success: true,
+      product: {
+        ...pJson,
+        _id: pJson.id,
+        currentStock: stock ? Number(stock.currentQuantity) : 0,
+        currentQuantity: stock ? Number(stock.currentQuantity) : 0,
+        reorderThreshold: stock ? Number(stock.reorderThreshold) : Number(pJson.reorderThreshold || 20)
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 
 // @route   POST /api/products
 // @desc    Create new product + create associated stock document

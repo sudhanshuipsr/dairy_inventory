@@ -69,6 +69,7 @@ const BarcodeScanner = ({
   isOpen,
   onClose,
   onScan,
+  onScanSuccess,
   title = 'Scan Product Barcode',
   subtitle = 'Point camera at product barcode or QR code'
 }) => {
@@ -127,10 +128,11 @@ const BarcodeScanner = ({
     triggerHaptic();
     stopScanner();
 
-    if (onScan) {
-      onScan(cleanText);
+    const scanCallback = onScan || onScanSuccess;
+    if (scanCallback) {
+      scanCallback(cleanText);
     }
-  }, [onScan, stopScanner]);
+  }, [onScan, onScanSuccess, stopScanner]);
 
   // Start scanner using @zxing/browser MultiFormatReader
   const startScanner = useCallback(async (deviceIdToUse = null) => {
@@ -222,8 +224,11 @@ const BarcodeScanner = ({
         }
       } catch (e) {}
 
-      // Attach stream to video element
+      // Attach stream to video element (with explicit iOS Safari inline attributes)
       if (videoRef.current) {
+        videoRef.current.setAttribute('playsinline', 'true');
+        videoRef.current.setAttribute('webkit-playsinline', 'true');
+        videoRef.current.muted = true;
         videoRef.current.srcObject = stream;
         await videoRef.current.play().catch(() => {});
       }

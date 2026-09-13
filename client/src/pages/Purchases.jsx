@@ -6,7 +6,8 @@ import {
   deletePurchaseApi, 
   getProductsApi,
   getSuppliersApi,
-  getProductByCodeApi
+  getProductByCodeApi,
+  getProductByBarcodeApi
 } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -251,22 +252,61 @@ export default function Purchases() {
   };
 
   // Barcode scanned for specific line item
-  const handleScanMatched = (barcode) => {
+  const handleScanMatched = async (barcode) => {
     setIsScannerOpen(false);
-    if (scanningLineIndex === null) return;
+    const targetIndex = scanningLineIndex;
+    setScanningLineIndex(null);
 
-    const matched = products.find(
-      (p) => (p.barcode && p.barcode.toLowerCase() === barcode.toLowerCase()) ||
-             (p.qrCode && p.qrCode.toLowerCase() === barcode.toLowerCase())
+    const bCode = (barcode || '').trim();
+    if (!bCode) return;
+
+    // 1. Check local catalog
+    let matched = products.find(
+      (p) => (p.barcode && p.barcode.toLowerCase() === bCode.toLowerCase()) ||
+             (p.qrCode && p.qrCode.toLowerCase() === bCode.toLowerCase()) ||
+             String(p.id) === bCode
     );
 
-    if (matched) {
-      handleLineItemChange(scanningLineIndex, 'productId', matched.id);
-      addToast(`Selected: ${matched.name}`, 'success');
-    } else {
-      addToast(`Scanned code "${barcode}" not found in catalog`, 'warning');
+    // 2. If not found locally, query backend /api/products/barcode/:code
+    if (!matched) {
+      try {
+        const res = await getProductByBarcodeApi(bCode);
+        if (res.data?.success && res.data.product) {
+          matched = res.data.product;
+        }
+      } catch (err) {}
     }
-    setScanningLineIndex(null);
+
+    if (matched) {
+      if (targetIndex !== null && targetIndex >= 0 && targetIndex < formData.items.length) {
+        handleLineItemChange(targetIndex, 'productId', matched.id || matched._id);
+        addToast(`Line #${targetIndex + 1} auto-filled: ${matched.name}`, 'success');
+      } else {
+        // Add new line with scanned product
+        const cost = Number(matched.costPrice) || Math.round(Number(matched.unitPrice || 40) * 0.8);
+        setFormData((prev) => ({
+          ...prev,
+          items: [
+            ...prev.items,
+            {
+              tempId: Date.now() + Math.random(),
+              productId: matched.id || matched._id,
+              productName: matched.name,
+              category: matched.category,
+              unit: matched.unit,
+              costPrice: cost,
+              quantity: 10,
+              subtotal: Number((cost * 10).toFixed(2)),
+              expiryDate: '',
+              batchNumber: ''
+            }
+          ]
+        }));
+        addToast(`Added new line for: ${matched.name}`, 'success');
+      }
+    } else {
+      addToast(`Scanned code "${bCode}" not found in product catalog`, 'warning');
+    }
   };
 
   // Submit Purchase Order
@@ -865,9 +905,14 @@ export default function Purchases() {
       {isScannerOpen && (
         <BarcodeScanner
           isOpen={isScannerOpen}
-          onClose={() => setIsScannerOpen(false)}
+          onClose={() => {
+            setIsScannerOpen(false);
+            setScanningLineIndex(null);
+          }}
+          onScan={handleScanMatched}
           onScanSuccess={handleScanMatched}
           title="Scan Product for Line Item"
+          subtitle="Point camera at product barcode to auto-fill this line"
         />
       )}
     </div>

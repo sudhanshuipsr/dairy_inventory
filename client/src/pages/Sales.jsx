@@ -6,7 +6,8 @@ import {
   createSaleApi, 
   deleteSaleApi, 
   getProductsApi,
-  getProductByCodeApi
+  getProductByCodeApi,
+  getProductByBarcodeApi
 } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -57,6 +58,7 @@ const Sales = () => {
   // New Sale POS Modal & Scanner
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [scanningLineIndex, setScanningLineIndex] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
   // Active Receipt Modal State
@@ -166,6 +168,9 @@ const Sales = () => {
   // Barcode / QR Scanner Handler
   const handleBarcodeScanned = async (scannedCode) => {
     setIsScannerOpen(false);
+    const targetLine = scanningLineIndex;
+    setScanningLineIndex(null);
+
     const upper = (scannedCode || '').trim().toUpperCase();
     let matched = products.find(
       (p) =>
@@ -175,23 +180,35 @@ const Sales = () => {
         String(p.id) === scannedCode
     );
 
-    if (matched) {
-      addItemToCart(matched);
-      setIsModalOpen(true);
-      addToast(`Scanned: ${matched.name} added to cart (Stock: ${matched.currentQuantity || 0})`, 'success');
-      return;
+    if (!matched) {
+      try {
+        const res = await getProductByBarcodeApi(scannedCode);
+        if (res.data?.success && res.data.product) {
+          matched = res.data.product;
+        }
+      } catch (err) {}
     }
 
-    try {
-      const res = await getProductByCodeApi(scannedCode);
-      if (res.data?.success && res.data.product) {
-        matched = res.data.product;
+    if (!matched) {
+      try {
+        const res = await getProductByCodeApi(scannedCode);
+        if (res.data?.success && res.data.product) {
+          matched = res.data.product;
+        }
+      } catch (err) {}
+    }
+
+    if (matched) {
+      if (targetLine !== null && targetLine >= 0 && targetLine < formData.items.length) {
+        handleLineItemChange(targetLine, 'productId', matched._id || matched.id);
+        addToast(`Line #${targetLine + 1} set: ${matched.name} (Stock: ${matched.currentQuantity || 0})`, 'success');
+      } else {
         addItemToCart(matched);
-        setIsModalOpen(true);
-        addToast(`Scanned: ${matched.name} added to cart (Stock: ${matched.currentQuantity || 0})`, 'success');
-        return;
+        addToast(`Added: ${matched.name} to cart (Stock: ${matched.currentQuantity || 0})`, 'success');
       }
-    } catch (err) {}
+      setIsModalOpen(true);
+      return;
+    }
 
     addToast(`No product found matching Barcode "${scannedCode}".`, 'warning');
   };
@@ -778,8 +795,8 @@ const Sales = () => {
                     }`}
                   >
                     <div className="grid grid-cols-12 gap-2 items-center">
-                      {/* Product Selector */}
-                      <div className="col-span-12 sm:col-span-5">
+                      {/* Product Selector with Line Barcode Scan Button */}
+                      <div className="col-span-12 sm:col-span-5 flex items-center gap-1.5">
                         <select
                           required
                           value={line.productId}
@@ -793,6 +810,17 @@ const Sales = () => {
                             </option>
                           ))}
                         </select>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setScanningLineIndex(index);
+                            setIsScannerOpen(true);
+                          }}
+                          className="p-1.5 bg-white hover:bg-emerald-50 text-emerald-700 border border-slate-200 rounded-xl transition-colors shrink-0 cursor-pointer shadow-2xs"
+                          title="Scan barcode for this line item"
+                        >
+                          <Camera className="w-3.5 h-3.5" />
+                        </button>
                       </div>
 
                       {/* Quantity Input */}

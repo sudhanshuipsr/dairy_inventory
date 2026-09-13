@@ -51,6 +51,7 @@ export const deleteUserApi = (id) => api.delete(`/users/${id}`);
 // 3. Product APIs
 export const getProductsApi = (params) => api.get('/products', { params });
 export const getProductByIdApi = (id) => api.get(`/products/${id}`);
+export const getProductByBarcodeApi = (code) => api.get(`/products/barcode/${encodeURIComponent(code)}`);
 export const getProductByCodeApi = (code) => api.get(`/products/code/${encodeURIComponent(code)}`);
 export const lookupBarcodeApi = (barcode) => api.get(`/products/lookup-barcode/${encodeURIComponent(barcode)}`);
 export const createProductApi = (data) => api.post('/products', data);
