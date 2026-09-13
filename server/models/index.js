@@ -11,6 +11,7 @@ import AuditLog from './AuditLog.js';
 import Feedback from './Feedback.js';
 import Supplier from './Supplier.js';
 import PurchaseItem from './PurchaseItem.js';
+import SaleItem from './SaleItem.js';
 
 // --- Associations ---
 
@@ -36,7 +37,15 @@ Purchase.belongsTo(Product, { foreignKey: 'productId', as: 'product' });
 User.hasMany(Purchase, { foreignKey: 'addedBy', as: 'purchases' });
 Purchase.belongsTo(User, { foreignKey: 'addedBy', as: 'user' });
 
-// Product <-> Sales (1:N)
+// Sale <-> SaleItem (1:N)
+Sale.hasMany(SaleItem, { foreignKey: 'saleId', as: 'items', onDelete: 'CASCADE' });
+SaleItem.belongsTo(Sale, { foreignKey: 'saleId', as: 'sale' });
+
+// Product <-> SaleItem (1:N)
+Product.hasMany(SaleItem, { foreignKey: 'productId', as: 'saleItems', onDelete: 'CASCADE' });
+SaleItem.belongsTo(Product, { foreignKey: 'productId', as: 'product' });
+
+// Product <-> Sales (1:N - legacy / single product)
 Product.hasMany(Sale, { foreignKey: 'productId', as: 'sales', onDelete: 'CASCADE' });
 Sale.belongsTo(Product, { foreignKey: 'productId', as: 'product' });
 User.hasMany(Sale, { foreignKey: 'addedBy', as: 'sales' });
@@ -74,9 +83,9 @@ export {
   AuditLog,
   Feedback,
   Supplier,
-  PurchaseItem
+  PurchaseItem,
+  SaleItem
 };
-
 
 export default {
   sequelize,
@@ -91,6 +100,6 @@ export default {
   AuditLog,
   Feedback,
   Supplier,
-  PurchaseItem
+  PurchaseItem,
+  SaleItem
 };
-

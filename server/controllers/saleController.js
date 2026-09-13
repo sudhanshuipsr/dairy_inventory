@@ -1,38 +1,82 @@
 import { Op } from 'sequelize';
-import { Sale, Product, User } from '../models/index.js';
+import { Sale, SaleItem, Product, Stock, User, sequelize } from '../models/index.js';
 import { subtractStock, addStock } from '../services/stockSyncService.js';
 import { logAudit } from '../middleware/auditLogger.js';
 
+// Helper to generate unique receipt numbers
+export const generateReceiptNumber = () => {
+  const now = new Date();
+  const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
+  const timeStr = String(now.getHours()).padStart(2, '0') + String(now.getMinutes()).padStart(2, '0') + String(now.getSeconds()).padStart(2, '0');
+  const rand = Math.floor(100 + Math.random() * 900);
+  return `REC-${dateStr}-${timeStr}-${rand}`;
+};
+
 // @route   GET /api/sales
-// @desc    Get all sales transactions
+// @desc    Get all sales transactions with filters
 // @access  Private
 export const getSales = async (req, res) => {
   try {
-    const { startDate, endDate, productId, customer } = req.query;
+    const { startDate, endDate, productId, customer, receiptNumber } = req.query;
     const where = {};
 
     if (startDate || endDate) {
       where.date = {};
       if (startDate) where.date[Op.gte] = new Date(startDate);
-      if (endDate) where.date[Op.lte] = new Date(endDate);
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        where.date[Op.lte] = end;
+      }
     }
 
-    if (productId) {
-      where.productId = productId;
+    if (receiptNumber) {
+      where.receiptNumber = { [Op.like]: `%${receiptNumber.trim()}%` };
     }
 
     if (customer) {
-      where.customerName = { [Op.like]: `%${customer}%` };
+      where.customerName = { [Op.like]: `%${customer.trim()}%` };
     }
 
-    const sales = await Sale.findAll({
+    const includeOptions = [
+      {
+        model: SaleItem,
+        as: 'items',
+        include: [
+          {
+            model: Product,
+            as: 'product',
+            attributes: ['id', 'name', 'category', 'unit', 'qrCode', 'barcode', 'costPrice', 'unitPrice']
+          }
+        ]
+      },
+      {
+        model: Product,
+        as: 'product',
+        attributes: ['id', 'name', 'category', 'unit', 'qrCode', 'barcode']
+      },
+      {
+        model: User,
+        as: 'user',
+        attributes: ['id', 'name', 'email', 'role']
+      }
+    ];
+
+    let sales = await Sale.findAll({
       where,
-      include: [
-        { model: Product, as: 'product', attributes: ['id', 'name', 'category', 'unit', 'qrCode'] },
-        { model: User, as: 'user', attributes: ['id', 'name', 'email', 'role'] }
-      ],
-      order: [['date', 'DESC']]
+      include: includeOptions,
+      order: [['date', 'DESC'], ['id', 'DESC']]
     });
+
+    // If filtered by productId, filter orders containing this product (either legacy or in items)
+    if (productId) {
+      const pIdNum = Number(productId);
+      sales = sales.filter((s) => {
+        const matchLegacy = Number(s.productId) === pIdNum;
+        const matchItem = Array.isArray(s.items) && s.items.some((it) => Number(it.productId) === pIdNum);
+        return matchLegacy || matchItem;
+      });
+    }
 
     const formattedSales = sales.map((s) => {
       const sJson = s.toJSON();
@@ -45,24 +89,44 @@ export const getSales = async (req, res) => {
         sJson.user._id = sJson.user.id;
         sJson.addedBy = sJson.user;
       }
-      sJson.quantity = Number(sJson.quantity);
-      sJson.sellingPrice = Number(sJson.sellingPrice);
-      sJson.costPriceSnapshot = Number(sJson.costPriceSnapshot || 0);
-      sJson.totalAmount = Number(sJson.totalAmount);
+
+      sJson.subtotal = Number(sJson.subtotal || sJson.totalAmount || 0);
+      sJson.discount = Number(sJson.discount || 0);
+      sJson.totalAmount = Number(sJson.totalAmount || 0);
+      sJson.quantity = Number(sJson.quantity || 0);
+      sJson.sellingPrice = Number(sJson.sellingPrice || 0);
+
+      if (Array.isArray(sJson.items)) {
+        sJson.items = sJson.items.map((it) => ({
+          ...it,
+          _id: it.id,
+          quantity: Number(it.quantity || 0),
+          sellingPrice: Number(it.sellingPrice || 0),
+          costPriceSnapshot: Number(it.costPriceSnapshot || 0),
+          subtotal: Number(it.subtotal || 0),
+          product: it.product ? { ...it.product, _id: it.product.id } : null
+        }));
+      }
+
       return sJson;
     });
 
     const totalRevenue = formattedSales.reduce((sum, s) => sum + Number(s.totalAmount || 0), 0);
-    const totalCOGS = formattedSales.reduce((sum, s) => sum + (Number(s.costPriceSnapshot || 0) * Number(s.quantity || 0)), 0);
-    const grossProfit = totalRevenue - totalCOGS;
-    const totalQuantity = formattedSales.reduce((sum, s) => sum + Number(s.quantity || 0), 0);
+    const totalDiscount = formattedSales.reduce((sum, s) => sum + Number(s.discount || 0), 0);
+    const totalTransactions = formattedSales.length;
+    const totalQuantity = formattedSales.reduce((sum, s) => {
+      if (Array.isArray(s.items) && s.items.length > 0) {
+        return sum + s.items.reduce((iSum, it) => iSum + Number(it.quantity || 0), 0);
+      }
+      return sum + Number(s.quantity || 0);
+    }, 0);
 
     res.status(200).json({
       success: true,
       count: formattedSales.length,
       totalRevenue,
-      totalCOGS,
-      grossProfit,
+      totalDiscount,
+      totalTransactions,
       totalQuantity,
       sales: formattedSales
     });
@@ -71,72 +135,288 @@ export const getSales = async (req, res) => {
   }
 };
 
+// @route   GET /api/sales/:id
+// @desc    Get single sale by ID with full item details (for receipts)
+// @access  Private
+export const getSaleById = async (req, res) => {
+  try {
+    const sale = await Sale.findByPk(req.params.id, {
+      include: [
+        {
+          model: SaleItem,
+          as: 'items',
+          include: [
+            {
+              model: Product,
+              as: 'product',
+              attributes: ['id', 'name', 'category', 'unit', 'qrCode', 'barcode', 'costPrice', 'unitPrice']
+            }
+          ]
+        },
+        {
+          model: Product,
+          as: 'product',
+          attributes: ['id', 'name', 'category', 'unit', 'qrCode', 'barcode']
+        },
+        {
+          model: User,
+          as: 'user',
+          attributes: ['id', 'name', 'email', 'role']
+        }
+      ]
+    });
+
+    if (!sale) {
+      return res.status(404).json({ success: false, message: 'Sale record not found' });
+    }
+
+    const sJson = sale.toJSON();
+    sJson._id = sJson.id;
+    if (sJson.product) {
+      sJson.product._id = sJson.product.id;
+      sJson.productId = sJson.product;
+    }
+    if (sJson.user) {
+      sJson.user._id = sJson.user.id;
+      sJson.addedBy = sJson.user;
+    }
+
+    sJson.subtotal = Number(sJson.subtotal || sJson.totalAmount || 0);
+    sJson.discount = Number(sJson.discount || 0);
+    sJson.totalAmount = Number(sJson.totalAmount || 0);
+
+    if (Array.isArray(sJson.items)) {
+      sJson.items = sJson.items.map((it) => ({
+        ...it,
+        _id: it.id,
+        quantity: Number(it.quantity || 0),
+        sellingPrice: Number(it.sellingPrice || 0),
+        costPriceSnapshot: Number(it.costPriceSnapshot || 0),
+        subtotal: Number(it.subtotal || 0),
+        product: it.product ? { ...it.product, _id: it.product.id } : null
+      }));
+    }
+
+    res.status(200).json({ success: true, sale: sJson });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 // @route   POST /api/sales
-// @desc    Record sale + AUTO STOCK DEDUCT + RECORD PROFIT SNAPSHOT
+// @desc    Record sale + AUTO STOCK DEDUCT + TRANSACTIONAL RECEIPT GENERATION
 // @access  Private
 export const createSale = async (req, res) => {
+  const transaction = await sequelize.transaction();
   try {
     const {
-      productId,
+      items, // Multi-line items array: [{ productId, quantity, sellingPrice }]
+      productId, // Legacy single product
       quantity,
       sellingPrice,
       customerName,
       outletOrRoute,
       paymentMode,
+      discount,
+      receiptNumber: customReceiptNumber,
       date,
       notes
     } = req.body;
 
-    if (!productId || !quantity || sellingPrice === undefined) {
+    // 1. Normalize line items
+    let lineItems = [];
+    if (Array.isArray(items) && items.length > 0) {
+      lineItems = items.map((it) => ({
+        productId: it.productId || it.product?._id || it.product?.id || it.product,
+        quantity: Number(it.quantity),
+        sellingPrice: Number(it.sellingPrice !== undefined ? it.sellingPrice : it.unitPrice || 0)
+      }));
+    } else if (productId && quantity) {
+      lineItems = [
+        {
+          productId,
+          quantity: Number(quantity),
+          sellingPrice: Number(sellingPrice || 0)
+        }
+      ];
+    }
+
+    if (lineItems.length === 0) {
+      await transaction.rollback();
       return res.status(400).json({
         success: false,
-        message: 'Product, quantity, and selling price are required'
+        message: 'At least one sale item is required'
       });
     }
 
-    const product = await Product.findByPk(productId);
-    if (!product) {
-      return res.status(404).json({ success: false, message: 'Product not found' });
+    // 2. Validate line items structure & quantities
+    for (let i = 0; i < lineItems.length; i++) {
+      const item = lineItems[i];
+      if (!item.productId) {
+        await transaction.rollback();
+        return res.status(400).json({
+          success: false,
+          message: `Product is required for line item #${i + 1}`
+        });
+      }
+      if (isNaN(item.quantity) || item.quantity <= 0) {
+        await transaction.rollback();
+        return res.status(400).json({
+          success: false,
+          message: `Quantity must be greater than zero for line item #${i + 1}`
+        });
+      }
+      if (isNaN(item.sellingPrice) || item.sellingPrice < 0) {
+        await transaction.rollback();
+        return res.status(400).json({
+          success: false,
+          message: `Selling price must be valid for line item #${i + 1}`
+        });
+      }
     }
 
-    const numQty = Number(quantity);
-    const numPrice = Number(sellingPrice);
-    const totalAmount = Number((numQty * numPrice).toFixed(2));
-    const costPriceSnapshot = Number(product.costPrice) || Math.round(numPrice * 0.8);
-    const userId = req.user.id || req.user._id;
+    // 3. STRICT STOCK AVAILABILITY CHECK BEFORE DEDUCTION
+    // Aggregating requested quantity per product in case product appears multiple times
+    const productQtyMap = {};
+    for (const it of lineItems) {
+      productQtyMap[it.productId] = (productQtyMap[it.productId] || 0) + it.quantity;
+    }
 
-    // 1. AUTO STOCK SYNC: Subtract from Stock (throws error if insufficient)
-    await subtractStock(product.id, numQty);
+    const productMap = {};
+    for (const pId of Object.keys(productQtyMap)) {
+      const product = await Product.findByPk(pId, { transaction });
+      if (!product) {
+        await transaction.rollback();
+        return res.status(404).json({
+          success: false,
+          message: `Product with ID "${pId}" was not found.`
+        });
+      }
 
-    // 2. Create Sale Record
-    const sale = await Sale.create({
-      productId: product.id,
-      quantity: numQty,
-      sellingPrice: numPrice,
-      costPriceSnapshot,
-      totalAmount,
-      customerName: customerName || 'Counter Customer',
-      outletOrRoute: outletOrRoute || 'Main Dairy Counter',
-      paymentMode: paymentMode || 'Cash',
-      date: date ? new Date(date) : new Date(),
-      addedBy: userId,
-      notes: notes || ''
-    });
+      const stock = await Stock.findOne({ where: { productId: pId }, transaction });
+      const availableQty = Number(stock ? stock.currentQuantity : 0);
+      const requestedQty = productQtyMap[pId];
 
-    // 3. Audit Log
-    const profit = totalAmount - (costPriceSnapshot * numQty);
+      if (availableQty < requestedQty) {
+        await transaction.rollback();
+        return res.status(400).json({
+          success: false,
+          message: `Insufficient stock for "${product.name}". Available: ${availableQty} ${product.unit}, Requested: ${requestedQty} ${product.unit}. Sale blocked.`
+        });
+      }
+
+      productMap[pId] = product;
+    }
+
+    // 4. Calculate Subtotal, Discount, and Net Grand Total
+    let subtotal = 0;
+    const preparedItems = [];
+    for (const it of lineItems) {
+      const product = productMap[it.productId];
+      const lineSubtotal = Number((it.quantity * it.sellingPrice).toFixed(2));
+      subtotal += lineSubtotal;
+      const costPriceSnapshot = Number(product.costPrice || 0);
+
+      preparedItems.push({
+        productId: it.productId,
+        quantity: it.quantity,
+        sellingPrice: it.sellingPrice,
+        costPriceSnapshot,
+        subtotal: lineSubtotal
+      });
+    }
+
+    subtotal = Number(subtotal.toFixed(2));
+    const discountAmount = Math.max(0, Number(Number(discount || 0).toFixed(2)));
+    const totalAmount = Math.max(0, Number((subtotal - discountAmount).toFixed(2)));
+
+    // 5. Generate Unique Receipt Number
+    let receiptNum = customReceiptNumber?.trim() || generateReceiptNumber();
+    // Ensure uniqueness
+    const existingRec = await Sale.findOne({ where: { receiptNumber: receiptNum }, transaction });
+    if (existingRec) {
+      receiptNum = generateReceiptNumber();
+    }
+
+    const userId = req.user?.id || req.user?._id;
+
+    // 6. Create Sale Header
+    const firstItem = preparedItems[0];
+    const sale = await Sale.create(
+      {
+        receiptNumber: receiptNum,
+        customerName: customerName || 'Walk-in Customer',
+        outletOrRoute: outletOrRoute || 'Counter POS',
+        paymentMode: paymentMode || 'Cash',
+        subtotal,
+        discount: discountAmount,
+        totalAmount,
+        date: date ? new Date(date) : new Date(),
+        addedBy: userId,
+        notes: notes || '',
+        // For legacy single-item consumers:
+        productId: lineItems.length === 1 ? firstItem.productId : null,
+        quantity: lineItems.length === 1 ? firstItem.quantity : null,
+        sellingPrice: lineItems.length === 1 ? firstItem.sellingPrice : null,
+        costPriceSnapshot: lineItems.length === 1 ? firstItem.costPriceSnapshot : null
+      },
+      { transaction }
+    );
+
+    // 7. Create SaleItem rows & atomically subtract stock in the transaction
+    for (const item of preparedItems) {
+      await SaleItem.create(
+        {
+          saleId: sale.id,
+          productId: item.productId,
+          quantity: item.quantity,
+          sellingPrice: item.sellingPrice,
+          costPriceSnapshot: item.costPriceSnapshot,
+          subtotal: item.subtotal
+        },
+        { transaction }
+      );
+
+      // Decrement stock in transaction
+      await subtractStock(item.productId, item.quantity, { transaction });
+    }
+
+    // 8. Commit Transaction
+    await transaction.commit();
+
+    // 9. Audit Logging
     await logAudit({
       req,
       action: 'CREATE',
       entityType: 'Sale',
       entityId: sale.id,
-      details: `Sold ${numQty} ${product.unit} of "${product.name}" for ₹${totalAmount} (${paymentMode}). Estimated profit: +₹${profit}. Stock deducted.`
+      details: `Generated Receipt #${receiptNum} for ₹${totalAmount} (${paymentMode}) with ${preparedItems.length} item(s). Stock deducted.`
     });
 
+    // 10. Fetch Complete Populated Sale for Client Receipt Rendering
     const populated = await Sale.findByPk(sale.id, {
       include: [
-        { model: Product, as: 'product', attributes: ['id', 'name', 'category', 'unit', 'qrCode'] },
-        { model: User, as: 'user', attributes: ['id', 'name', 'email'] }
+        {
+          model: SaleItem,
+          as: 'items',
+          include: [
+            {
+              model: Product,
+              as: 'product',
+              attributes: ['id', 'name', 'category', 'unit', 'qrCode', 'barcode', 'costPrice', 'unitPrice']
+            }
+          ]
+        },
+        {
+          model: Product,
+          as: 'product',
+          attributes: ['id', 'name', 'category', 'unit', 'qrCode', 'barcode']
+        },
+        {
+          model: User,
+          as: 'user',
+          attributes: ['id', 'name', 'email']
+        }
       ]
     });
 
@@ -153,48 +433,66 @@ export const createSale = async (req, res) => {
 
     res.status(201).json({
       success: true,
-      message: `Sale of ${numQty} ${product.unit} ${product.name} recorded & stock updated!`,
+      message: `Sale completed! Receipt #${receiptNum} issued for ₹${totalAmount}.`,
+      receiptNumber: receiptNum,
       sale: sJson
     });
   } catch (error) {
+    if (!transaction.finished) {
+      await transaction.rollback();
+    }
     res.status(400).json({ success: false, message: error.message });
   }
 };
 
 // @route   DELETE /api/sales/:id
-// @desc    Delete sale + RESTOCK REVERSED QUANTITY (Admin only)
+// @desc    Delete sale + RESTOCK REVERSED QUANTITIES IN TRANSACTION (Admin only)
 // @access  Private/Admin
 export const deleteSale = async (req, res) => {
+  const transaction = await sequelize.transaction();
   try {
     const sale = await Sale.findByPk(req.params.id, {
-      include: [{ model: Product, as: 'product' }]
+      include: [
+        { model: SaleItem, as: 'items' },
+        { model: Product, as: 'product' }
+      ],
+      transaction
     });
 
     if (!sale) {
+      await transaction.rollback();
       return res.status(404).json({ success: false, message: 'Sale record not found' });
     }
 
-    // Reverse stock deduction by adding it back
-    await addStock(sale.productId, sale.quantity);
+    // Restock all items
+    if (Array.isArray(sale.items) && sale.items.length > 0) {
+      for (const item of sale.items) {
+        await addStock(item.productId, item.quantity, { transaction });
+      }
+    } else if (sale.productId && sale.quantity) {
+      await addStock(sale.productId, sale.quantity, { transaction });
+    }
 
-    const prodName = sale.product?.name || 'Item';
-    const qty = sale.quantity;
-
-    await sale.destroy();
+    const receipt = sale.receiptNumber || `ID ${sale.id}`;
+    await sale.destroy({ transaction });
+    await transaction.commit();
 
     await logAudit({
       req,
       action: 'DELETE',
       entityType: 'Sale',
       entityId: req.params.id,
-      details: `Admin deleted sale of ${qty} ${prodName}. Restocked ${qty} units.`
+      details: `Admin voided/deleted Sale Receipt #${receipt}. Stock quantities reversed.`
     });
 
     res.status(200).json({
       success: true,
-      message: `Sale deleted and ${qty} units restocked successfully`
+      message: `Sale Receipt #${receipt} deleted and inventory restocked successfully`
     });
   } catch (error) {
+    if (!transaction.finished) {
+      await transaction.rollback();
+    }
     res.status(500).json({ success: false, message: error.message });
   }
 };

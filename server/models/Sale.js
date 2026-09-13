@@ -10,29 +10,22 @@ Sale.init(
       autoIncrement: true,
       primaryKey: true
     },
-    productId: {
-      type: DataTypes.INTEGER,
-      allowNull: false,
-      references: {
-        model: 'products',
-        key: 'id'
-      },
-      onDelete: 'CASCADE'
+    receiptNumber: {
+      type: DataTypes.STRING(100),
+      allowNull: true
     },
-    quantity: {
-      type: DataTypes.FLOAT,
-      allowNull: false,
-      validate: {
-        min: 0.01
-      }
+    date: {
+      type: DataTypes.DATE,
+      defaultValue: DataTypes.NOW
     },
-    sellingPrice: {
-      type: DataTypes.DECIMAL(10, 2),
+    subtotal: {
+      type: DataTypes.DECIMAL(12, 2),
       allowNull: false,
       defaultValue: 0.0
     },
-    costPriceSnapshot: {
+    discount: {
       type: DataTypes.DECIMAL(10, 2),
+      allowNull: false,
       defaultValue: 0.0
     },
     totalAmount: {
@@ -52,9 +45,9 @@ Sale.init(
       type: DataTypes.ENUM('Cash', 'UPI', 'Card', 'Credit'),
       defaultValue: 'Cash'
     },
-    date: {
-      type: DataTypes.DATE,
-      defaultValue: DataTypes.NOW
+    notes: {
+      type: DataTypes.TEXT,
+      allowNull: true
     },
     addedBy: {
       type: DataTypes.INTEGER,
@@ -64,6 +57,30 @@ Sale.init(
         key: 'id'
       },
       onDelete: 'SET NULL'
+    },
+    // Legacy single-line columns (retained for backward compatibility)
+    productId: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: {
+        model: 'products',
+        key: 'id'
+      },
+      onDelete: 'CASCADE'
+    },
+    quantity: {
+      type: DataTypes.FLOAT,
+      allowNull: true
+    },
+    sellingPrice: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: true,
+      defaultValue: 0.0
+    },
+    costPriceSnapshot: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: true,
+      defaultValue: 0.0
     }
   },
   {

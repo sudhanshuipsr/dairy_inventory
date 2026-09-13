@@ -53,6 +53,14 @@ export const ensureDbConnected = async () => {
         await sequelize.query("ALTER TABLE purchases ALTER COLUMN \"productId\" DROP NOT NULL;");
         await sequelize.query("ALTER TABLE purchases ALTER COLUMN quantity DROP NOT NULL;");
         await sequelize.query("ALTER TABLE purchases ALTER COLUMN \"costPrice\" DROP NOT NULL;");
+        await sequelize.query("ALTER TABLE sales ADD COLUMN IF NOT EXISTS \"receiptNumber\" VARCHAR(100);");
+        await sequelize.query("ALTER TABLE sales ADD COLUMN IF NOT EXISTS discount NUMERIC(10,2) DEFAULT 0.00;");
+        await sequelize.query("ALTER TABLE sales ADD COLUMN IF NOT EXISTS subtotal NUMERIC(12,2) DEFAULT 0.00;");
+        await sequelize.query("ALTER TABLE sales ADD COLUMN IF NOT EXISTS notes TEXT;");
+        await sequelize.query("ALTER TABLE sales ALTER COLUMN \"productId\" DROP NOT NULL;");
+        await sequelize.query("ALTER TABLE sales ALTER COLUMN quantity DROP NOT NULL;");
+        await sequelize.query("ALTER TABLE sales ALTER COLUMN \"sellingPrice\" DROP NOT NULL;");
+        await sequelize.query("CREATE UNIQUE INDEX IF NOT EXISTS \"sales_receipt_number_idx\" ON \"sales\" (\"receiptNumber\");");
       } catch (e) {}
       await initializeDefaultUsers();
       console.log(`[Database] Connected and synced successfully (${activeDatabaseType.toUpperCase()})`);
