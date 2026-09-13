@@ -1,4 +1,5 @@
 import { Sequelize } from 'sequelize';
+import pg from 'pg';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -32,6 +33,7 @@ try {
     activeDatabaseType = 'postgres';
     sequelize = new Sequelize(DATABASE_URL, {
       dialect: 'postgres',
+      dialectModule: pg,
       logging: false,
       dialectOptions: {
         ssl: {
@@ -40,7 +42,7 @@ try {
         }
       },
       pool: {
-        max: 10,
+        max: 5,
         min: 0,
         acquire: 30000,
         idle: 10000
