@@ -9,7 +9,7 @@ import {
   X, 
   Sparkles, 
   Zap, 
-  ScanBarcode, 
+  ShoppingCart, 
   WifiOff 
 } from 'lucide-react';
 
@@ -178,9 +178,9 @@ const PwaAutoInstallModal = () => {
                     </div>
 
                     <div className="p-3 rounded-2xl bg-blue-50/80 border border-blue-100/80 space-y-1">
-                      <ScanBarcode className="w-5 h-5 text-[#0B4F9C] mx-auto" />
-                      <p className="text-[11px] font-bold text-slate-800">Barcode POS</p>
-                      <p className="text-[9px] text-slate-500">Camera scanner built-in</p>
+                      <ShoppingCart className="w-5 h-5 text-[#0B4F9C] mx-auto" />
+                      <p className="text-[11px] font-bold text-slate-800">Fast POS</p>
+                      <p className="text-[9px] text-slate-500">Quick counter billing</p>
                     </div>
 
                     <div className="p-3 rounded-2xl bg-amber-50/80 border border-amber-100/80 space-y-1">

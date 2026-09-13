@@ -79,7 +79,7 @@ const Navbar = ({ onOpenMobileMenu }) => {
         </div>
       </div>
 
-      {/* Right Controls: Install App, Barcode Scanner Quick Launch & User Pill */}
+      {/* Right Controls: Install App & User Pill */}
       <div className="flex items-center gap-2 sm:gap-2.5">
         {/* PWA Install Button */}
         {!isInstalled && (

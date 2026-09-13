@@ -194,7 +194,7 @@ const ReceiptModal = ({ isOpen, onClose, sale }) => {
 
       const itemsHtml = items.map((it, idx) => {
         const name = it.product?.name || it.productId?.name || 'Dairy Product';
-        const code = it.product?.barcode || it.product?.qrCode || '';
+        const code = it.product?.qrCode || '';
         const unit = it.product?.unit || it.productId?.unit || 'unit';
         const lineTotal = Number(it.subtotal || it.quantity * it.sellingPrice || 0);
         return `
@@ -321,28 +321,15 @@ const ReceiptModal = ({ isOpen, onClose, sale }) => {
                 color: #166534;
                 font-family: monospace;
               }
-              .barcode-box {
+              .receipt-tag {
                 text-align: center;
                 margin-top: 10px;
                 padding-top: 8px;
                 border-top: 1px dashed #cbd5e1;
-              }
-              .barcode-bars {
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                gap: 1.5px;
-                height: 24px;
-                opacity: 0.85;
-              }
-              .bar { background: #0f172a; height: 100%; }
-              .barcode-text {
                 font-family: monospace;
                 font-size: 9.5px;
                 font-weight: 700;
-                letter-spacing: 2px;
                 color: #64748b;
-                margin-top: 3px;
               }
               .footer-msg {
                 text-align: center;
@@ -358,25 +345,24 @@ const ReceiptModal = ({ isOpen, onClose, sale }) => {
               <div class="brand-title">MOTHER DAIRY</div>
               <div class="brand-sub">Dairy Inventory & Outward Counter</div>
               <div class="brand-address">Sector 18 Market, New Delhi - 110001 • Ph: 1800-180-1989</div>
-              <div class="brand-address" style="font-family: monospace;">GSTIN: 07AAACM1234F1Z8</div>
             </div>
 
-            <div class="divider"></div>
+            <div class="divider-thick"></div>
 
             <div class="row">
               <span class="label">Receipt No:</span>
-              <span class="val val-bold">${receiptNumber}</span>
+              <span class="val font-mono">${receiptNumber}</span>
             </div>
             <div class="row">
               <span class="label">Date & Time:</span>
-              <span class="val">${formattedDate} ${formattedTime}</span>
+              <span class="val">${dateFormatted}</span>
             </div>
             <div class="row">
               <span class="label">Customer:</span>
-              <span class="val">${customerName}</span>
+              <span class="val font-bold">${customerName}</span>
             </div>
             <div class="row">
-              <span class="label">Outlet / Counter:</span>
+              <span class="label">Outlet / Route:</span>
               <span class="val">${outletName}</span>
             </div>
             <div class="row">
@@ -421,12 +407,7 @@ const ReceiptModal = ({ isOpen, onClose, sale }) => {
               <span class="total-val">Rs. ${totalAmount.toFixed(2)}</span>
             </div>
 
-            <div class="barcode-box">
-              <div class="barcode-bars">
-                ${[3, 2, 5, 2, 6, 3, 4, 2, 5, 3, 2, 5, 3, 6, 2, 4, 3, 5, 2, 3, 3, 5, 2, 6, 3, 4, 2, 5, 3].map(w => `<div class="bar" style="width: ${w * 0.75}px;"></div>`).join('')}
-              </div>
-              <div class="barcode-text">${receiptNumber}</div>
-            </div>
+            <div class="receipt-tag">${receiptNumber}</div>
 
             <div class="footer-msg">
               <p>Keep milk and paneer refrigerated below 4°C at all times.</p>
@@ -546,7 +527,7 @@ const ReceiptModal = ({ isOpen, onClose, sale }) => {
                         <td className="py-2 pr-2">
                           <div className="font-bold text-slate-900 leading-snug">{name}</div>
                           <div className="text-[10px] text-slate-400 font-mono">
-                            {it.product?.barcode || it.product?.qrCode || ''}
+                            {it.product?.qrCode || ''}
                           </div>
                         </td>
                         <td className="py-2 text-center text-slate-700 whitespace-nowrap font-bold">
@@ -587,17 +568,7 @@ const ReceiptModal = ({ isOpen, onClose, sale }) => {
               </div>
             </div>
 
-            {/* Simulated Barcode for Receipt */}
-            <div className="pt-3 text-center border-t border-dashed border-slate-200 space-y-1">
-              <div className="h-8 flex items-center justify-center gap-0.5 opacity-70">
-                {[4, 2, 6, 2, 8, 3, 5, 2, 7, 3, 2, 6, 3, 8, 2, 5, 3, 7, 2, 4, 3, 6, 2, 8, 3, 5, 2, 6, 4].map((w, i) => (
-                  <div
-                    key={i}
-                    className="bg-slate-900 h-full"
-                    style={{ width: `${w * 0.75}px` }}
-                  />
-                ))}
-              </div>
+            <div className="pt-3 text-center border-t border-dashed border-slate-200">
               <p className="text-[10px] font-mono tracking-widest text-slate-500 font-bold">
                 {receiptNumber}
               </p>

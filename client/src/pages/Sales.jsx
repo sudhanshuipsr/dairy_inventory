@@ -6,8 +6,7 @@ import {
   createSaleApi, 
   deleteSaleApi, 
   getProductsApi,
-  getProductByCodeApi,
-  getProductByBarcodeApi
+  getProductByCodeApi
 } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -84,8 +83,13 @@ const Sales = () => {
     const prodParam = searchParams.get('product');
 
     if (qrParam && products.length > 0) {
-      handleBarcodeScanned(qrParam);
-      setIsModalOpen(true);
+      const match = products.find(
+        (p) => String(p._id) === String(qrParam) || String(p.id) === String(qrParam) || p.qrCode === qrParam
+      );
+      if (match) {
+        addItemToCart(match);
+        setIsModalOpen(true);
+      }
     } else if (prodParam && products.length > 0) {
       const match = products.find(
         (p) => String(p._id) === String(prodParam) || String(p.id) === String(prodParam) || p.qrCode === prodParam
@@ -159,54 +163,6 @@ const Sales = () => {
         });
       }
     }
-  };
-
-  // Barcode / QR Scanner Handler
-  const handleBarcodeScanned = async (scannedCode) => {
-    setIsScannerOpen(false);
-    const targetLine = scanningLineIndex;
-    setScanningLineIndex(null);
-
-    const upper = (scannedCode || '').trim().toUpperCase();
-    let matched = products.find(
-      (p) =>
-        (p.barcode && p.barcode.toUpperCase() === upper) ||
-        (p.qrCode && p.qrCode.toUpperCase() === upper) ||
-        String(p._id) === scannedCode ||
-        String(p.id) === scannedCode
-    );
-
-    if (!matched) {
-      try {
-        const res = await getProductByBarcodeApi(scannedCode);
-        if (res.data?.success && res.data.product) {
-          matched = res.data.product;
-        }
-      } catch (err) {}
-    }
-
-    if (!matched) {
-      try {
-        const res = await getProductByCodeApi(scannedCode);
-        if (res.data?.success && res.data.product) {
-          matched = res.data.product;
-        }
-      } catch (err) {}
-    }
-
-    if (matched) {
-      if (targetLine !== null && targetLine >= 0 && targetLine < formData.items.length) {
-        handleLineItemChange(targetLine, 'productId', matched._id || matched.id);
-        addToast(`Line #${targetLine + 1} set: ${matched.name} (Stock: ${matched.currentQuantity || 0})`, 'success');
-      } else {
-        addItemToCart(matched);
-        addToast(`Added: ${matched.name} to cart (Stock: ${matched.currentQuantity || 0})`, 'success');
-      }
-      setIsModalOpen(true);
-      return;
-    }
-
-    addToast(`No product found matching Barcode "${scannedCode}".`, 'warning');
   };
 
   // Line Item Form Handlers
@@ -397,15 +353,6 @@ const Sales = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {/* Scan Barcode Modal */}
-          <button
-            onClick={() => setIsScannerOpen(true)}
-            className="px-3.5 py-2 bg-white hover:bg-slate-50 text-[#0B4F9C] border border-blue-200 rounded-xl text-xs font-bold shadow-2xs transition-all hover:scale-105 active:scale-95 flex items-center gap-1.5 cursor-pointer"
-          >
-            <Camera className="w-4 h-4 text-cyan-600" />
-            <span>Scan Barcode</span>
-          </button>
-
           {/* New POS Sale Trigger */}
           <button
             onClick={() => setIsModalOpen(true)}
@@ -756,15 +703,6 @@ const Sales = () => {
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => setIsScannerOpen(true)}
-                  className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-[#0B4F9C] border border-blue-200 rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer"
-                >
-                  <Camera className="w-3.5 h-3.5" />
-                  <span>Scan to Cart</span>
-                </button>
-
-                <button
-                  type="button"
                   onClick={handleAddLineItem}
                   className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer"
                 >
@@ -791,7 +729,7 @@ const Sales = () => {
                     }`}
                   >
                     <div className="grid grid-cols-12 gap-2 items-center">
-                      {/* Product Selector with Line Barcode Scan Button */}
+                      {/* Product Selector */}
                       <div className="col-span-12 sm:col-span-5 flex items-center gap-1.5">
                         <select
                           required

@@ -333,7 +333,7 @@ const LandingPage = () => {
                   to="/stock"
                   className="px-5 py-2.5 bg-[#0B4F9C] hover:bg-[#083D7A] text-white rounded-2xl text-xs font-bold shadow-md shadow-blue-500/20 transition-all flex items-center gap-1.5"
                 >
-                  <span>📷 Scan Retail Barcode</span>
+                  <span>📦 View Live Stock</span>
                 </Link>
               </div>
             </div>

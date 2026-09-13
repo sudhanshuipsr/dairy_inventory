@@ -6,8 +6,7 @@ import {
   deletePurchaseApi, 
   getProductsApi,
   getSuppliersApi,
-  getProductByCodeApi,
-  getProductByBarcodeApi
+  getProductByCodeApi
 } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -16,7 +15,6 @@ import Badge from '../components/common/Badge';
 import { 
   ShoppingBag, 
   Plus, 
-  Camera, 
   Search, 
   Trash2, 
   Calendar, 
@@ -245,64 +243,6 @@ export default function Purchases() {
       updated[index] = item;
       return { ...prev, items: updated };
     });
-  };
-
-  // Barcode scanned for specific line item
-  const handleScanMatched = async (barcode) => {
-    setIsScannerOpen(false);
-    const targetIndex = scanningLineIndex;
-    setScanningLineIndex(null);
-
-    const bCode = (barcode || '').trim();
-    if (!bCode) return;
-
-    // 1. Check local catalog
-    let matched = products.find(
-      (p) => (p.barcode && p.barcode.toLowerCase() === bCode.toLowerCase()) ||
-             (p.qrCode && p.qrCode.toLowerCase() === bCode.toLowerCase()) ||
-             String(p.id) === bCode
-    );
-
-    // 2. If not found locally, query backend /api/products/barcode/:code
-    if (!matched) {
-      try {
-        const res = await getProductByBarcodeApi(bCode);
-        if (res.data?.success && res.data.product) {
-          matched = res.data.product;
-        }
-      } catch (err) {}
-    }
-
-    if (matched) {
-      if (targetIndex !== null && targetIndex >= 0 && targetIndex < formData.items.length) {
-        handleLineItemChange(targetIndex, 'productId', matched.id || matched._id);
-        addToast(`Line #${targetIndex + 1} auto-filled: ${matched.name}`, 'success');
-      } else {
-        // Add new line with scanned product
-        const cost = Number(matched.costPrice) || Math.round(Number(matched.unitPrice || 40) * 0.8);
-        setFormData((prev) => ({
-          ...prev,
-          items: [
-            ...prev.items,
-            {
-              tempId: Date.now() + Math.random(),
-              productId: matched.id || matched._id,
-              productName: matched.name,
-              category: matched.category,
-              unit: matched.unit,
-              costPrice: cost,
-              quantity: 10,
-              subtotal: Number((cost * 10).toFixed(2)),
-              expiryDate: '',
-              batchNumber: ''
-            }
-          ]
-        }));
-        addToast(`Added new line for: ${matched.name}`, 'success');
-      }
-    } else {
-      addToast(`Scanned code "${bCode}" not found in product catalog`, 'warning');
-    }
   };
 
   // Submit Purchase Order

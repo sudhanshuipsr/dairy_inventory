@@ -360,7 +360,7 @@ const Dashboard = () => {
           </p>
         </div>
 
-        {/* Action Controls: Range Selector + Refresh + Barcode Scanner + Purchase + Sales */}
+        {/* Action Controls: Range Selector + Refresh + Purchase + Sales */}
         <div className="flex flex-wrap items-center gap-2">
           {/* Global Date Range Selector */}
           <div className="flex items-center bg-[#f4f8f2] p-1 rounded-2xl border border-[#a0c396]/30 text-xs font-bold">

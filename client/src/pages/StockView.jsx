@@ -3,7 +3,6 @@ import { useSearchParams, Link } from 'react-router-dom';
 import { 
   getStockLevelsApi, 
   updateReorderThresholdApi,
-  getProductByCodeApi,
   quickStockInwardApi
 } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -60,16 +59,13 @@ const StockView = () => {
 
   // Stock Entry Modal State
   const [isStockEntryOpen, setIsStockEntryOpen] = useState(false);
-  const [searchingProduct, setSearchingProduct] = useState(false);
   const [submittingInward, setSubmittingInward] = useState(false);
   const [matchedProduct, setMatchedProduct] = useState(null);
-  const [notFoundState, setNotFoundState] = useState(false);
 
   const quantityInputRef = useRef(null);
 
   // Stock Inward Form State
   const [entryForm, setEntryForm] = useState({
-    productCode: '',
     productId: '',
     productName: '',
     category: 'milk',
@@ -166,7 +162,6 @@ const StockView = () => {
     setMatchedProduct(null);
     setNotFoundState(false);
     setEntryForm({
-      productCode: '',
       productId: '',
       productName: '',
       category: 'milk',
@@ -181,78 +176,6 @@ const StockView = () => {
       notes: ''
     });
     setIsStockEntryOpen(true);
-  };
-
-  // Lookup product by barcode or code string
-  const lookupProductByCode = async (codeToLookup) => {
-    const clean = (codeToLookup || '').trim();
-    if (!clean) return;
-
-    try {
-      setSearchingProduct(true);
-      setNotFoundState(false);
-
-      const res = await getProductByCodeApi(clean);
-
-      if (res.data?.success && res.data.product) {
-        const prod = res.data.product;
-        setMatchedProduct(prod);
-        setNotFoundState(false);
-
-        // Pre-fill form from matched product
-        const shelfDays = Number(prod.shelfLifeDays || 3);
-        const expDate = new Date(Date.now() + shelfDays * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-        const catCode = (prod.category || 'MD').toUpperCase().slice(0, 3);
-
-        setEntryForm((prev) => ({
-          ...prev,
-          productCode: clean,
-          productId: prod._id || prod.id,
-          productName: prod.name,
-          category: prod.category || 'milk',
-          unit: prod.unit || 'pack',
-          costPrice: prod.costPrice || Math.round(Number(prod.unitPrice || 40) * 0.8),
-          unitPrice: prod.unitPrice || 40,
-          expiryDate: expDate,
-          batchNumber: `BCH-${catCode}-${Date.now().toString().slice(-5)}`,
-          notes: prod.barcode ? `Barcode: ${prod.barcode}` : prev.notes
-        }));
-
-        addToast(`Product Found: ${prod.name} (In stock: ${prod.currentStock || prod.currentQuantity || 0})`, 'success');
-
-        // Focus quantity input for immediate entry
-        setTimeout(() => {
-          quantityInputRef.current?.focus();
-          quantityInputRef.current?.select();
-        }, 150);
-      }
-    } catch (err) {
-      console.warn('Product lookup error:', err);
-      if (err.response?.status === 404 || err.response?.data?.notFound) {
-        setMatchedProduct(null);
-        setNotFoundState(true);
-        setEntryForm((prev) => ({
-          ...prev,
-          productCode: clean,
-          productId: '',
-          productName: `New Item (${clean})`,
-          notes: `Barcode: ${clean}`
-        }));
-        addToast(`Product with code "${clean}" not found in catalog. You can register it below.`, 'warning');
-      } else {
-        addToast('Failed to check product code. Please try again.', 'error');
-      }
-    } finally {
-      setSearchingProduct(false);
-    }
-  };
-
-  // Barcode / QR Scan success handler
-  const handleScanSuccess = (scannedCode) => {
-    setIsScannerOpen(false);
-    setIsStockEntryOpen(true);
-    setEntryForm((prev) => ({ ...prev, productCode: scannedCode }));
-    lookupProductByCode(scannedCode);
   };
 
   // Submit Stock Inward
@@ -275,7 +198,6 @@ const StockView = () => {
 
       const payload = {
         productId: entryForm.productId || undefined,
-        barcode: entryForm.productCode || undefined,
         productName: entryForm.productName.trim(),
         name: entryForm.productName.trim(),
         category: entryForm.category,
@@ -320,7 +242,6 @@ const StockView = () => {
     const matchesSearch = 
       (product.name || '').toLowerCase().includes((searchQuery || '').toLowerCase()) ||
       (product.qrCode || '').toLowerCase().includes((searchQuery || '').toLowerCase()) ||
-      (product.barcode || '').toLowerCase().includes((searchQuery || '').toLowerCase()) ||
       (product.category || '').toLowerCase().includes((searchQuery || '').toLowerCase());
 
     return matchesCategory && matchesSearch;
@@ -336,7 +257,7 @@ const StockView = () => {
             <span>Live Stock Inventory</span>
           </h1>
           <p className="text-xs text-slate-500 mt-1">
-            Current on-hand inventory balances auto-updated via Purchases, Sales, and Barcode Scans.
+            Current on-hand inventory balances auto-updated via Purchases and Sales.
           </p>
         </div>
 
@@ -403,7 +324,7 @@ const StockView = () => {
             <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
-              placeholder="Search by product name, barcode (e.g. 890...), or QR code..."
+              placeholder="Search by product name, SKU, or category..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0B4F9C] shadow-2xs"
@@ -471,7 +392,7 @@ const StockView = () => {
                   <td colSpan="6" className="py-12 text-center text-slate-400">
                     <Boxes className="w-8 h-8 mx-auto mb-2 text-slate-300" />
                     <p className="font-bold text-slate-600">No stock records found</p>
-                    <p className="text-[11px] text-slate-400 mt-1">Try changing your search filter or scan a barcode to add stock.</p>
+                    <p className="text-[11px] text-slate-400 mt-1">Try changing your search filter or add stock.</p>
                   </td>
                 </tr>
               ) : (
@@ -487,11 +408,6 @@ const StockView = () => {
                       <td className="py-3.5 px-4">
                         <div className="font-bold text-slate-900">{product.name}</div>
                         <div className="text-[10px] text-slate-400 flex items-center gap-2 mt-0.5">
-                          {product.barcode && (
-                            <span className="font-mono bg-slate-100 px-1.5 py-0.5 rounded text-slate-600">
-                              Barcode: {product.barcode}
-                            </span>
-                          )}
                           <span className="font-mono text-slate-500">QR: {product.qrCode}</span>
                         </div>
                       </td>
@@ -538,7 +454,6 @@ const StockView = () => {
                               const expDate = new Date(Date.now() + shelfDays * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
                               const catCode = (product.category || 'MD').toUpperCase().slice(0, 3);
                               setEntryForm({
-                                productCode: product.barcode || product.qrCode || String(product.id),
                                 productId: product._id || product.id,
                                 productName: product.name,
                                 category: product.category || 'milk',
@@ -581,7 +496,7 @@ const StockView = () => {
         </div>
       </div>
 
-      {/* 5. Stock Inward Entry Form Modal (Auto-populated upon barcode scan) */}
+      {/* 5. Stock Inward Entry Form Modal */}
       <Modal
         isOpen={isStockEntryOpen}
         onClose={() => setIsStockEntryOpen(false)}
@@ -589,32 +504,82 @@ const StockView = () => {
         size="lg"
       >
         <form onSubmit={handleSubmitStockEntry} className="space-y-4">
-          {/* Barcode / Product Code Top Action Bar */}
+          {/* Catalog Product Quick Selector */}
           <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-2">
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                <Tag className="w-3.5 h-3.5 text-[#0B4F9C]" />
-                <span>Product Code / Barcode</span>
+                <Package className="w-3.5 h-3.5 text-[#0B4F9C]" />
+                <span>Select Catalog Product (Or enter new product below)</span>
               </label>
+              {matchedProduct && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMatchedProduct(null);
+                    setEntryForm(prev => ({
+                      ...prev,
+                      productId: '',
+                      productName: '',
+                      costPrice: 28,
+                      unitPrice: 34
+                    }));
+                  }}
+                  className="text-[11px] text-[#0B4F9C] font-semibold hover:underline"
+                >
+                  Clear Selection
+                </button>
+              )}
             </div>
 
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={entryForm.productCode}
-                onChange={(e) => setEntryForm({ ...entryForm, productCode: e.target.value })}
-                placeholder="Enter or scan barcode (e.g. 8901648001018)..."
-                className="flex-1 px-3.5 py-2 bg-white border border-slate-300 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0B4F9C]"
-              />
-              <button
-                type="button"
-                onClick={() => lookupProductByCode(entryForm.productCode)}
-                disabled={searchingProduct || !entryForm.productCode.trim()}
-                className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-colors flex items-center gap-1"
-              >
-                {searchingProduct ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <span>Lookup</span>}
-              </button>
-            </div>
+            <select
+              value={entryForm.productId || ''}
+              onChange={(e) => {
+                const selectedId = e.target.value;
+                if (!selectedId) {
+                  setMatchedProduct(null);
+                  return;
+                }
+                const found = stocks.find(s => {
+                  const p = s.productId || s.product;
+                  return (p?._id || p?.id) === selectedId;
+                });
+                const prod = found?.productId || found?.product;
+                if (prod) {
+                  setMatchedProduct(prod);
+                  const shelfDays = Number(prod.shelfLifeDays || 3);
+                  const expDate = new Date(Date.now() + shelfDays * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+                  const catCode = (prod.category || 'MD').toUpperCase().slice(0, 3);
+                  setEntryForm(prev => ({
+                    ...prev,
+                    productId: prod._id || prod.id,
+                    productName: prod.name,
+                    category: prod.category || 'milk',
+                    unit: prod.unit || 'pack',
+                    costPrice: prod.costPrice || Math.round(Number(prod.unitPrice || 40) * 0.8),
+                    unitPrice: prod.unitPrice || 40,
+                    expiryDate: expDate,
+                    batchNumber: `BCH-${catCode}-${Date.now().toString().slice(-5)}`
+                  }));
+                  setTimeout(() => {
+                    quantityInputRef.current?.focus();
+                    quantityInputRef.current?.select();
+                  }, 150);
+                }
+              }}
+              className="w-full px-3.5 py-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0B4F9C]"
+            >
+              <option value="">-- Choose Existing Product (Optional) --</option>
+              {stocks.map(s => {
+                const p = s.productId || s.product;
+                if (!p) return null;
+                const id = p._id || p.id;
+                return (
+                  <option key={id} value={id}>
+                    {p.name} ({s.currentQuantity} in stock) - ₹{p.unitPrice}
+                  </option>
+                );
+              })}
+            </select>
 
             {/* Matched Product Found Preview Card */}
             {matchedProduct && (
@@ -635,17 +600,6 @@ const StockView = () => {
                 <div className="text-right">
                   <span className="text-[10px] text-slate-500 block">Unit Selling Price</span>
                   <span className="text-xs font-bold text-slate-900">₹{matchedProduct.unitPrice}</span>
-                </div>
-              </div>
-            )}
-
-            {/* Not Found Banner with Prompt to Register as New Product */}
-            {notFoundState && (
-              <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2.5">
-                <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
-                <div className="text-xs text-amber-900">
-                  <span className="font-bold">Product Not In Catalog:</span> No product matches barcode "{entryForm.productCode}". 
-                  Please enter the product details below to register it and add initial stock.
                 </div>
               </div>
             )}

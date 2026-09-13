@@ -112,7 +112,7 @@ const QrGeneratorModal = ({ isOpen, onClose, product }) => {
                 ${svgHtml}
               </div>
               <div class="product-name">${product.name}</div>
-              <div class="code-val">${product.qrCode || product.barcode || ''}</div>
+              <div class="code-val">${product.qrCode || String(product.id || '')}</div>
               <div class="meta-line">
                 Rs. ${Number(product.unitPrice || 0).toFixed(2)} / ${product.unit || 'unit'} • ${product.category || 'Dairy'}
               </div>
@@ -209,7 +209,7 @@ const QrGeneratorModal = ({ isOpen, onClose, product }) => {
 
           <div ref={svgRef} className="p-3 bg-white rounded-2xl border border-slate-200 inline-block shadow-sm">
             <QRCodeSVG
-              value={product.qrCode || product.barcode || String(product.id || 'MD-000')}
+              value={product.qrCode || String(product.id || 'MD-000')}
               size={180}
               level="H"
               includeMargin={true}
@@ -222,7 +222,7 @@ const QrGeneratorModal = ({ isOpen, onClose, product }) => {
               {product.name}
             </h4>
             <div className="text-xs font-mono font-black text-[#0B4F9C] mt-0.5">
-              {product.qrCode || product.barcode}
+              {product.qrCode || String(product.id || '')}
             </div>
             <div className="flex items-center justify-center gap-2 text-[11px] text-slate-500 font-bold mt-1">
               <span>₹{product.unitPrice} / {product.unit}</span>
