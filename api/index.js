@@ -28,12 +28,13 @@ app.get('/api/health', (req, res) => {
 // Auth Routes
 app.post('/api/auth/login', (req, res) => {
   const { email, password } = req.body || {};
-  const isStaff = email?.toLowerCase()?.includes('staff');
+  const isOwner = email?.toLowerCase() === 'sudhanshuipsr@gmail.com';
+  const isStaff = !isOwner && email?.toLowerCase()?.includes('staff');
   const user = {
-    id: isStaff ? 2 : 1,
-    _id: isStaff ? 2 : 1,
-    name: isStaff ? 'Store Staff Counter' : 'Mother Dairy Admin',
-    email: email || 'admin@dairy.com',
+    id: isOwner ? 3 : isStaff ? 2 : 1,
+    _id: isOwner ? 3 : isStaff ? 2 : 1,
+    name: isOwner ? 'Sudhanshu (Owner)' : isStaff ? 'Store Staff Counter' : 'Mother Dairy Admin',
+    email: email || (isOwner ? 'sudhanshuipsr@gmail.com' : 'admin@dairy.com'),
     role: isStaff ? 'staff' : 'admin'
   };
   const token = 'demo-admin-jwt-token-2026';
@@ -657,7 +658,8 @@ app.get('/api/users', (req, res) => {
     success: true,
     users: [
       { id: 1, _id: 1, name: 'Mother Dairy Admin', email: 'admin@dairy.com', role: 'admin' },
-      { id: 2, _id: 2, name: 'Store Staff Counter', email: 'staff@dairy.com', role: 'staff' }
+      { id: 2, _id: 2, name: 'Store Staff Counter', email: 'staff@dairy.com', role: 'staff' },
+      { id: 3, _id: 3, name: 'Sudhanshu (Owner)', email: 'sudhanshuipsr@gmail.com', role: 'admin' }
     ]
   });
 });
