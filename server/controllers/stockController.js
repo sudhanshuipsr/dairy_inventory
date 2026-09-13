@@ -149,14 +149,31 @@ export const quickStockInward = async (req, res) => {
       });
     }
 
-    if (!product) {
+    if (product) {
+      let changed = false;
+      if (req.body.unitPrice && Number(req.body.unitPrice) > 0 && Number(product.unitPrice) !== Number(req.body.unitPrice)) {
+        product.unitPrice = Number(req.body.unitPrice);
+        changed = true;
+      }
+      if (costPrice !== undefined && costPrice !== '' && Number(costPrice) > 0 && Number(product.costPrice) !== Number(costPrice)) {
+        product.costPrice = Number(costPrice);
+        changed = true;
+      }
+      if (req.body.productName && req.body.productName.trim() && req.body.productName.trim() !== product.name) {
+        product.name = req.body.productName.trim();
+        changed = true;
+      }
+      if (changed) {
+        await product.save();
+      }
+    } else {
       const cleanCode = (barcode || '').toString().trim();
       const prodName = req.body.productName || req.body.name || (cleanCode ? `Item (${cleanCode})` : 'New Scanned Item');
       const uPrice = Number(req.body.unitPrice) || (costPrice ? Math.round(Number(costPrice) * 1.25) : 50);
       const cPrice = costPrice !== undefined && costPrice !== '' ? Number(costPrice) : Math.round(uPrice * 0.8);
       product = await Product.create({
         name: prodName,
-        category: req.body.category || 'sweets',
+        category: req.body.category || 'dairy',
         unit: req.body.unit || 'pack',
         unitPrice: uPrice,
         costPrice: cPrice,

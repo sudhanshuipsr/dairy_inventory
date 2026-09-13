@@ -75,6 +75,102 @@ const triggerHaptic = () => {
   } catch (e) {}
 };
 
+// Helper: Extract MRP from product title, generic name or quantity text (e.g., "MRP 14", "Rs. 20", "₹50")
+const extractPriceFromText = (text) => {
+  if (!text || typeof text !== 'string') return null;
+  const match = text.match(/(?:mrp|rs\.?|₹|\binr)\s*[:.-]?\s*(\d+(?:\.\d{1,2})?)/i) ||
+                text.match(/(\d+(?:\.\d{1,2})?)\s*(?:rs|inr|₹)/i);
+  if (match && match[1]) {
+    const p = parseFloat(match[1]);
+    if (p >= 1 && p <= 5000) return p;
+  }
+  return null;
+};
+
+// Helper: Estimate realistic Indian MRP by category, weight and product name
+const estimateRealisticMrp = (name = '', unit = '', category = 'sweets') => {
+  const n = (name + ' ' + unit).toLowerCase();
+  const c = (category || '').toLowerCase();
+
+  if (n.includes('ghee')) {
+    if (n.includes('1 l') || n.includes('1l') || n.includes('1000m') || n.includes('1 kg')) return 650;
+    if (n.includes('500m') || n.includes('500 g')) return 340;
+    if (n.includes('200m') || n.includes('200 g')) return 150;
+    return 450;
+  }
+  if (n.includes('butter')) {
+    if (n.includes('500') || n.includes('500g')) return 275;
+    if (n.includes('100') || n.includes('100g')) return 58;
+    return 120;
+  }
+  if (n.includes('paneer')) {
+    if (n.includes('1 kg') || n.includes('1kg')) return 420;
+    if (n.includes('500') || n.includes('500g')) return 220;
+    if (n.includes('200') || n.includes('200g')) return 95;
+    return 100;
+  }
+  if (n.includes('milk') || c === 'milk') {
+    if (n.includes('full cream') || n.includes('gold')) {
+      if (n.includes('1 l') || n.includes('1l') || n.includes('1000m')) return 68;
+      return 34;
+    }
+    if (n.includes('toned') || n.includes('taaza')) {
+      if (n.includes('1 l') || n.includes('1l') || n.includes('1000m')) return 56;
+      return 28;
+    }
+    if (n.includes('cow')) {
+      if (n.includes('1 l') || n.includes('1l') || n.includes('1000m')) return 58;
+      return 30;
+    }
+    if (n.includes('1 l') || n.includes('1l') || n.includes('1000m')) return 62;
+    return 32;
+  }
+  if (n.includes('dahi') || n.includes('curd') || n.includes('yogurt')) {
+    if (n.includes('1 kg') || n.includes('1kg')) return 80;
+    if (n.includes('400') || n.includes('400g')) return 40;
+    if (n.includes('200') || n.includes('200g')) return 22;
+    return 35;
+  }
+  if (n.includes('chaach') || n.includes('buttermilk') || n.includes('lassi')) {
+    if (n.includes('tetra') || n.includes('200m')) return 15;
+    return 20;
+  }
+  if (n.includes('ice cream') || n.includes('kulfi')) {
+    if (n.includes('tub') || n.includes('750m') || n.includes('1 l')) return 250;
+    if (n.includes('cone') || n.includes('cup')) return 40;
+    return 60;
+  }
+  if (n.includes('noodle') || n.includes('maggi') || n.includes('yippee')) {
+    if (n.includes('pack of 4') || n.includes('4 pack')) return 56;
+    return 14;
+  }
+  if (n.includes('biscuit') || n.includes('cookie') || n.includes('parle') || n.includes('marie')) {
+    if (n.includes('250') || n.includes('family') || n.includes('300')) return 35;
+    return 20;
+  }
+  if (n.includes('namkeen') || n.includes('bhujia') || n.includes('chips') || n.includes('kurkure')) {
+    if (n.includes('400') || n.includes('large') || n.includes('family')) return 110;
+    if (n.includes('200') || n.includes('150')) return 55;
+    return 20;
+  }
+  if (n.includes('sweet') || n.includes('mithai') || n.includes('laddu') || n.includes('papdi') || n.includes('gulab')) {
+    if (n.includes('500') || n.includes('500g')) return 180;
+    if (n.includes('1 kg') || n.includes('1kg')) return 350;
+    return 95;
+  }
+  if (n.includes('tea') || n.includes('chai') || n.includes('coffee')) {
+    if (n.includes('500') || n.includes('500g')) return 280;
+    if (n.includes('250') || n.includes('250g')) return 145;
+    return 120;
+  }
+  if (n.includes('juice') || n.includes('maaza') || n.includes('frooti') || n.includes('coke')) {
+    if (n.includes('1.2') || n.includes('2 l') || n.includes('1.5')) return 95;
+    if (n.includes('600m') || n.includes('750m')) return 40;
+    return 20;
+  }
+  return 30;
+};
+
 // Quick sample test barcodes from various brands
 const DEMO_TEST_BARCODES = [
   { label: 'Mother Dairy Full Cream (1L)', barcode: '8901648001018', icon: '🥛', brand: 'Mother Dairy', price: '₹68' },
@@ -517,6 +613,12 @@ const QrScannerModal = ({
             const weight = p.quantity || p.net_weight || 'pack';
             const fullName = weight && !name.includes(weight) ? `${name} (${weight})` : name;
 
+            const detectedPrice = extractPriceFromText(name) ||
+              extractPriceFromText(p.generic_name) ||
+              extractPriceFromText(weight) ||
+              estimateRealisticMrp(fullName, weight, 'sweets');
+            const detectedCost = Math.round(detectedPrice * 0.8) || 30;
+
             product = {
               name: fullName,
               brand,
@@ -525,8 +627,8 @@ const QrScannerModal = ({
               category: 'sweets',
               barcode: cleanCode,
               unit: weight || 'pack',
-              unitPrice: 50,
-              costPrice: 40,
+              unitPrice: detectedPrice,
+              costPrice: detectedCost,
               shelfLifeDays: 90,
               description: p.generic_name || 'Verified Retail Product'
             };
@@ -539,6 +641,8 @@ const QrScannerModal = ({
     if (!product) {
       const isIndia = cleanCode.startsWith('890');
       const origin = isIndia ? 'GS1 India' : 'Retail';
+      const estimatedPrice = cleanCode.startsWith('8901648') || cleanCode.startsWith('8901262') ? 34 : 40;
+      const estimatedCost = Math.round(estimatedPrice * 0.8);
       product = {
         name: `Scanned Item (${cleanCode})`,
         brand: origin,
@@ -547,8 +651,8 @@ const QrScannerModal = ({
         category: 'sweets',
         barcode: cleanCode,
         unit: 'pack',
-        unitPrice: 50,
-        costPrice: 40,
+        unitPrice: estimatedPrice,
+        costPrice: estimatedCost,
         shelfLifeDays: 60,
         description: `Barcode: ${cleanCode}`
       };
@@ -1023,49 +1127,99 @@ const QrScannerModal = ({
               </div>
             </div>
 
-            {/* Auto-filled details: Price & Expiry Date */}
+            {/* Editable Product Name */}
+            <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200/80">
+              <label className="text-[11px] font-bold text-slate-600 block mb-1">
+                Product Title / Item Name:
+              </label>
+              <input
+                type="text"
+                value={matchedProduct.name || ''}
+                onChange={(e) => setMatchedProduct({ ...matchedProduct, name: e.target.value })}
+                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                placeholder="e.g. Amul Gold Milk (500ml)"
+              />
+            </div>
+
+            {/* Price Configuration: Retail MRP & Cost Price */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {/* Cost Price */}
-              <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200/80">
-                <label className="text-[11px] font-bold text-slate-600 flex items-center justify-between mb-1">
-                  <span>Inward Cost Price (₹)</span>
-                  <span className="text-[10px] text-slate-500 font-bold">MRP: ₹{inwardData.unitPrice}</span>
+              {/* Selling Price / MRP */}
+              <div className="bg-emerald-50/60 p-3.5 rounded-2xl border border-emerald-200 shadow-sm">
+                <label className="text-[11px] font-black text-emerald-950 flex items-center justify-between mb-1">
+                  <span>Retail Price / MRP (₹)</span>
+                  <span className="text-[10px] text-emerald-700 font-bold bg-emerald-100/80 px-1.5 py-0.5 rounded">
+                    Selling Price
+                  </span>
                 </label>
                 <div className="relative">
-                  <span className="absolute left-3 top-2.5 text-xs font-bold text-slate-400">₹</span>
+                  <span className="absolute left-3 top-2 text-sm font-black text-emerald-600">₹</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.5"
+                    value={inwardData.unitPrice}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const num = Number(val) || 0;
+                      setInwardData(prev => ({
+                        ...prev,
+                        unitPrice: val,
+                        costPrice: val !== '' ? (Math.round(num * 0.8 * 10) / 10).toString() : prev.costPrice
+                      }));
+                      setMatchedProduct(prev => prev ? ({ ...prev, unitPrice: num }) : prev);
+                    }}
+                    placeholder="e.g. 34"
+                    className="w-full pl-7 pr-3 py-2 bg-white border border-emerald-300 rounded-xl text-sm font-black text-emerald-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+                <span className="text-[10px] text-slate-500 font-medium mt-1 block">
+                  Match physical packet MRP
+                </span>
+              </div>
+
+              {/* Inward Cost Price */}
+              <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80 shadow-sm">
+                <label className="text-[11px] font-bold text-slate-700 flex items-center justify-between mb-1">
+                  <span>Inward Cost Price (₹)</span>
+                  {Number(inwardData.unitPrice) > 0 && (
+                    <span className="text-[10px] font-black text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded">
+                      Margin: ₹{(Number(inwardData.unitPrice || 0) - Number(inwardData.costPrice || 0)).toFixed(1)}
+                    </span>
+                  )}
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-2 text-sm font-black text-slate-500">₹</span>
                   <input
                     type="number"
                     min="0"
                     step="0.5"
                     value={inwardData.costPrice}
                     onChange={(e) => setInwardData({ ...inwardData, costPrice: e.target.value })}
-                    className="w-full pl-7 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    placeholder="e.g. 28"
+                    className="w-full pl-7 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-sm font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   />
                 </div>
                 <span className="text-[10px] text-emerald-600 font-semibold mt-1 block">
-                  ✓ Auto-calculated from MRP
+                  Purchase cost from supplier
                 </span>
               </div>
+            </div>
 
-              {/* Expiry Date */}
-              <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200/80">
-                <label className="text-[11px] font-bold text-slate-600 flex items-center justify-between mb-1">
-                  <span>Expiry Date (Use By)</span>
-                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
-                    {matchedProduct.shelfLifeDays || 60}d Shelf Life
-                  </span>
-                </label>
-                <div className="relative">
-                  <input
-                    type="date"
-                    value={inwardData.expiryDate}
-                    onChange={(e) => setInwardData({ ...inwardData, expiryDate: e.target.value })}
-                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  />
-                </div>
-                <span className="text-[10px] text-emerald-600 font-semibold mt-1 block">
-                  ✓ Auto-filled based on shelf life
+            {/* Expiry Date */}
+            <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200/80">
+              <label className="text-[11px] font-bold text-slate-600 flex items-center justify-between mb-1">
+                <span>Expiry Date (Use By)</span>
+                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
+                  {matchedProduct.shelfLifeDays || 60}d Shelf Life
                 </span>
+              </label>
+              <div className="relative">
+                <input
+                  type="date"
+                  value={inwardData.expiryDate}
+                  onChange={(e) => setInwardData({ ...inwardData, expiryDate: e.target.value })}
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
               </div>
             </div>
 
