@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Lock, Mail, ArrowRight, UserCheck, Sparkles, Loader2 } from 'lucide-react';
+import { Lock, Mail, ArrowRight, Loader2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 
@@ -29,12 +29,6 @@ const Login = () => {
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleQuickFill = (demoEmail, demoPass) => {
-    setEmail(demoEmail);
-    setPassword(demoPass);
-    addToast(`Loaded ${demoEmail} credentials. Click Sign In.`, 'info');
   };
 
   return (
@@ -133,26 +127,6 @@ const Login = () => {
               )}
             </button>
           </form>
-
-          {/* Quick Fill Demo Credentials */}
-          <div className="pt-4 border-t border-slate-100 space-y-2.5">
-            <span className="text-[11px] font-bold text-[#6a9c6a] block text-center uppercase tracking-wider">
-              1-Click Demo Access
-            </span>
-            <div>
-              <button
-                type="button"
-                onClick={() => handleQuickFill('staff@dairy.com', 'staff123')}
-                className="w-full p-2.5 rounded-2xl bg-[#ebf5eb] hover:bg-[#d8e8d8] border border-[#a0c396]/40 text-left transition-colors cursor-pointer flex items-center justify-between"
-              >
-                <div className="flex items-center gap-1.5 text-[11px] font-bold text-[#2d4a2d]">
-                  <UserCheck className="w-3.5 h-3.5 text-[#6a9c6a]" />
-                  <span>Staff User</span>
-                </div>
-                <div className="text-[10px] text-[#3f5a3f] font-mono">staff@dairy.com</div>
-              </button>
-            </div>
-          </div>
         </div>
       </motion.div>
     </div>
