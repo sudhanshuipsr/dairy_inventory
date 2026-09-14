@@ -19,7 +19,11 @@ import {
   Search, 
   Printer, 
   RefreshCw, 
-  Layers 
+  Layers,
+  Filter,
+  SlidersHorizontal,
+  ChevronDown,
+  X
 } from 'lucide-react';
 
 import { 
@@ -37,6 +41,8 @@ const ProductManagement = () => {
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('All');
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [sortBy, setSortBy] = useState('name-asc');
 
   // Modals
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -153,15 +159,37 @@ const ProductManagement = () => {
     }
   };
 
-  const filteredProducts = (products || []).filter((p) => {
-    if (!p) return false;
-    const matchesCat = categoryFilter === 'All' || p.category === categoryFilter;
-    const matchesQuery = 
-      (p.name || '').toLowerCase().includes((searchQuery || '').toLowerCase()) ||
-      (p.qrCode || '').toLowerCase().includes((searchQuery || '').toLowerCase()) ||
-      (p.category || '').toLowerCase().includes((searchQuery || '').toLowerCase());
-    return matchesCat && matchesQuery;
-  });
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (categoryFilter !== 'All') count++;
+    if (sortBy !== 'name-asc') count++;
+    return count;
+  }, [categoryFilter, sortBy]);
+
+  const filteredProducts = useMemo(() => {
+    let result = (products || []).filter((p) => {
+      if (!p) return false;
+      const matchesCat = categoryFilter === 'All' || p.category === categoryFilter;
+      const q = (searchQuery || '').trim().toLowerCase();
+      const matchesQuery = !q ||
+        (p.name || '').toLowerCase().includes(q) ||
+        (p.qrCode || '').toLowerCase().includes(q) ||
+        (p.barcode || '').toLowerCase().includes(q) ||
+        (p.category || '').toLowerCase().includes(q);
+      return matchesCat && matchesQuery;
+    });
+
+    result.sort((a, b) => {
+      if (sortBy === 'name-asc') return (a.name || '').localeCompare(b.name || '');
+      if (sortBy === 'name-desc') return (b.name || '').localeCompare(a.name || '');
+      if (sortBy === 'price-desc') return Number(b.unitPrice || 0) - Number(a.unitPrice || 0);
+      if (sortBy === 'price-asc') return Number(a.unitPrice || 0) - Number(b.unitPrice || 0);
+      if (sortBy === 'shelf-desc') return Number(b.shelfLifeDays || 0) - Number(a.shelfLifeDays || 0);
+      return 0;
+    });
+
+    return result;
+  }, [products, categoryFilter, searchQuery, sortBy]);
 
   const displayedCategories = useMemo(() => {
     const presentCats = new Set((products || []).map(p => p.category).filter(Boolean));
@@ -190,11 +218,11 @@ const ProductManagement = () => {
           {isAdmin && (
             <button
               onClick={handleOpenCreateModal}
-              className="px-4 py-2 bg-[#0B4F9C] hover:bg-[#083D7A] text-white rounded-xl text-xs font-black shadow-md shadow-blue-500/20 transition-all hover:scale-105 active:scale-95 flex items-center gap-1.5"
+              className="px-4 py-2 bg-[#0B4F9C] hover:bg-[#083D7A] text-white rounded-xl text-xs font-black shadow-md shadow-blue-500/20 transition-all hover:scale-105 active:scale-95 flex items-center gap-1.5 cursor-pointer"
               title="Add a brand new item to the product catalog"
             >
               <Plus className="w-4 h-4" />
-              <span>+ Add New Item</span>
+              <span>Add New Item</span>
             </button>
           )}
 
@@ -210,35 +238,126 @@ const ProductManagement = () => {
 
       {/* 2. Filter & Search Controls */}
       <div className="bg-white p-4 rounded-3xl border border-slate-200/80 shadow-sm space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="relative flex-1 min-w-[220px] max-w-md">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+        {/* Row 1: Dedicated Search Input (Takes full width, cannot be squished) + Filter Button */}
+        <div className="flex items-center gap-2 sm:gap-3">
+          <div className="relative flex-1 min-w-[180px]">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
-              placeholder="Search product name or QR code..."
+              placeholder="Search product name, category, QR code, or barcode..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-[#FAF8F5] border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0B4F9C]"
+              className="w-full pl-10 pr-9 py-2.5 bg-slate-50/75 hover:bg-slate-50 focus:bg-white border border-slate-200 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0B4F9C] transition-all"
             />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-200 transition-colors cursor-pointer"
+                title="Clear search"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
 
-          {/* Category Filter */}
-          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
-            {displayedCategories.map((cat) => (
-              <button
-                key={cat.id}
-                onClick={() => setCategoryFilter(cat.id)}
-                className={`px-3 py-1.5 rounded-xl text-[11px] font-bold whitespace-nowrap transition-all flex items-center gap-1.5 ${
-                  categoryFilter === cat.id
-                    ? 'bg-[#0B4F9C] text-white shadow-xs font-black'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-                <span>{cat.icon}</span>
-                <span>{cat.id === 'All' ? 'All' : cat.label}</span>
-              </button>
-            ))}
+          {/* Dedicated Filter Button */}
+          <button
+            type="button"
+            onClick={() => setIsFilterOpen(!isFilterOpen)}
+            className={`px-3.5 sm:px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 sm:gap-2 shrink-0 cursor-pointer shadow-2xs ${
+              isFilterOpen || activeFiltersCount > 0
+                ? 'bg-[#0B4F9C] text-white border border-[#0B4F9C] shadow-sm'
+                : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+            }`}
+            title="Filter and sort catalog items"
+          >
+            <Filter className="w-3.5 h-3.5" />
+            <span>Filters</span>
+            {activeFiltersCount > 0 && (
+              <span className="w-5 h-5 rounded-full bg-white text-[#0B4F9C] text-[10px] font-black flex items-center justify-center shadow-2xs">
+                {activeFiltersCount}
+              </span>
+            )}
+            <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${isFilterOpen ? 'rotate-180' : ''}`} />
+          </button>
+        </div>
+
+        {/* Row 2: Expandable Filter & Sort Drawer Panel */}
+        {isFilterOpen && (
+          <div className="p-3.5 sm:p-4 bg-slate-50/90 border border-slate-200 rounded-2xl space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                <SlidersHorizontal className="w-3.5 h-3.5 text-[#0B4F9C]" />
+                <span>Filter & Sort Catalog Options</span>
+              </span>
+              {activeFiltersCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCategoryFilter('All');
+                    setSortBy('name-asc');
+                  }}
+                  className="text-xs text-rose-600 hover:text-rose-700 font-bold hover:underline cursor-pointer"
+                >
+                  Reset All Filters
+                </button>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Category selector */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 mb-1">Product Category</label>
+                <select
+                  value={categoryFilter}
+                  onChange={(e) => setCategoryFilter(e.target.value)}
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0B4F9C]"
+                >
+                  {displayedCategories.map(c => (
+                    <option key={c.id} value={c.id}>
+                      {c.icon} {c.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Sort Order selector */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 mb-1">Sort By</label>
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0B4F9C]"
+                >
+                  <option value="name-asc">Product Name (A → Z)</option>
+                  <option value="name-desc">Product Name (Z → A)</option>
+                  <option value="price-desc">Selling Price (High → Low)</option>
+                  <option value="price-asc">Selling Price (Low → High)</option>
+                  <option value="shelf-desc">Shelf Life (Longest First)</option>
+                </select>
+              </div>
+            </div>
           </div>
+        )}
+
+        {/* Row 3: Horizontal Category Quick Pills (Placed in their OWN row so they never squeeze or break the search input!) */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar pt-1">
+          {displayedCategories.map((cat) => (
+            <button
+              key={cat.id}
+              type="button"
+              onClick={() => setCategoryFilter(cat.id)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
+                categoryFilter === cat.id
+                  ? 'bg-[#0B4F9C] text-white shadow-xs font-black'
+                  : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200/90'
+              }`}
+            >
+              <span>{cat.icon}</span>
+              <span>{cat.label}</span>
+            </button>
+          ))}
         </div>
       </div>
 
