@@ -191,9 +191,10 @@ const ProductManagement = () => {
             <button
               onClick={handleOpenCreateModal}
               className="px-4 py-2 bg-[#0B4F9C] hover:bg-[#083D7A] text-white rounded-xl text-xs font-black shadow-md shadow-blue-500/20 transition-all hover:scale-105 active:scale-95 flex items-center gap-1.5"
+              title="Add a brand new item to the product catalog"
             >
               <Plus className="w-4 h-4" />
-              <span>+ Add New Product</span>
+              <span>+ Add New Item</span>
             </button>
           )}
 
@@ -346,8 +347,8 @@ const ProductManagement = () => {
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title={isEditing ? 'Edit Dairy Product' : 'Create New Dairy Product'}
-        subtitle="Configure product details, measurement unit, default pricing, and QR identifier."
+        title={isEditing ? 'Edit Item Details' : 'Add New Item to Catalog'}
+        subtitle="Register a new item with prices & shelf life. (To add stock quantities, use 'Add Stock' or 'Bulk Order')"
         icon={<Package className="w-5 h-5 text-[#0B4F9C]" />}
         maxWidth="max-w-lg"
       >

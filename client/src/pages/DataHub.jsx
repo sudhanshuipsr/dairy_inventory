@@ -233,10 +233,10 @@ const DataHub = () => {
       badge: 'Sales Ledger'
     },
     {
-      title: 'Purchase Inward Orders Log',
+      title: 'Bulk Orders Log (Purchases)',
       type: 'purchases',
       filename: 'mother_dairy_purchases_report.csv',
-      desc: 'Milk and dairy stock inwards, procurement costs, supplier invoices.',
+      desc: 'Supplier bulk orders, procurement costs, and invoices.',
       icon: <ShoppingBag className="w-6 h-6 text-[#1e3a1e]" />,
       badge: 'Procurement'
     },
@@ -266,10 +266,10 @@ const DataHub = () => {
       desc: 'Header template with sample products for bulk catalog creation.'
     },
     {
-      title: 'Purchases Inward Template',
+      title: 'Bulk Orders Template',
       type: 'template-purchases',
       filename: 'purchases_import_template.csv',
-      desc: 'Template for uploading bulk purchases and syncing stock automatically.'
+      desc: 'Template for uploading bulk orders and syncing stock automatically.'
     },
     {
       title: 'Sales Invoices Template',
@@ -489,7 +489,7 @@ const DataHub = () => {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {[
                 { id: 'products', label: '📦 Product Catalog', desc: 'Create products & initial inventory' },
-                { id: 'purchases', label: '📥 Purchases Inward', desc: 'Add stock & log batch records' },
+                { id: 'purchases', label: '📥 Bulk Orders', desc: 'Add bulk stock & log supplier invoices' },
                 { id: 'sales', label: '🛒 Sales Transactions', desc: 'Log customer orders & deduct stock' }
               ].map((opt) => (
                 <button

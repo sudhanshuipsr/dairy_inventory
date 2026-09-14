@@ -824,7 +824,7 @@ const QrScannerModal = ({
               <div className="flex items-center gap-2">
                 <h3 className="font-black text-base text-slate-900 tracking-tight">
                   {viewStep === 'inward' 
-                    ? 'Confirm Stock Inward' 
+                    ? 'Confirm Add Stock' 
                     : viewStep === 'success'
                     ? 'Stock Added Successfully!'
                     : 'HD Barcode & QR Scanner'}
@@ -1325,9 +1325,9 @@ const QrScannerModal = ({
               </div>
             </div>
 
-            {/* Inward Value Summary */}
+            {/* Stock Value Summary */}
             <div className="flex items-center justify-between text-xs px-2 text-slate-500 font-medium">
-              <span>Total Inward Procurement Value:</span>
+              <span>Total Value of Added Stock:</span>
               <span className="font-bold text-slate-900 text-sm">
                 ₹{(Number(inwardData.quantity || 0) * Number(inwardData.costPrice || 0)).toLocaleString('en-IN')}
               </span>

@@ -218,7 +218,7 @@ const StockView = () => {
       fetchStockLevels();
     } catch (err) {
       console.error('Stock inward error:', err);
-      addToast(err.response?.data?.message || 'Failed to record stock inward', 'error');
+      addToast(err.response?.data?.message || 'Failed to add stock', 'error');
     } finally {
       setSubmittingInward(false);
     }
@@ -265,10 +265,10 @@ const StockView = () => {
           <button
             onClick={handleOpenStockEntry}
             className="px-4 py-2.5 bg-[#0B4F9C] hover:bg-[#083D7A] text-white rounded-xl text-xs font-bold shadow-sm transition-all hover:scale-105 active:scale-95 flex items-center gap-1.5"
-            title="Open stock inward form"
+            title="Add incoming stock directly"
           >
             <Plus className="w-3.5 h-3.5" />
-            <span>+ Stock Inward</span>
+            <span>+ Add Stock</span>
           </button>
 
           <button
@@ -470,7 +470,7 @@ const StockView = () => {
                             className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg text-[11px] font-bold transition-colors"
                             title="Add stock for this product"
                           >
-                            + Inward
+                            + Add Stock
                           </button>
 
                           {/* Reorder Threshold Editor */}
@@ -494,11 +494,12 @@ const StockView = () => {
         </div>
       </div>
 
-      {/* 5. Stock Inward Entry Form Modal */}
+      {/* 5. Add Stock Modal */}
       <Modal
         isOpen={isStockEntryOpen}
         onClose={() => setIsStockEntryOpen(false)}
-        title="Stock Inward Entry"
+        title="Add Stock to Inventory"
+        subtitle="Quickly add incoming milk, curd, or paneer stock to live inventory."
         size="lg"
       >
         <form onSubmit={handleSubmitStockEntry} className="space-y-4">
@@ -507,7 +508,7 @@ const StockView = () => {
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
                 <Package className="w-3.5 h-3.5 text-[#0B4F9C]" />
-                <span>Select Catalog Product (Or enter new product below)</span>
+                <span>Select Product (Or type details below)</span>
               </label>
               {matchedProduct && (
                 <button
@@ -805,7 +806,7 @@ const StockView = () => {
               ) : (
                 <>
                   <Plus className="w-4 h-4" />
-                  <span>Confirm Stock Inward (+{entryForm.quantity || 0} {entryForm.unit})</span>
+                  <span>Confirm & Add Stock (+{entryForm.quantity || 0} {entryForm.unit})</span>
                 </>
               )}
             </button>

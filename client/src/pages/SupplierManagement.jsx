@@ -243,7 +243,7 @@ export default function SupplierManagement() {
           <Building2 className="w-10 h-10 text-slate-300 mx-auto" />
           <h3 className="font-extrabold text-sm text-slate-700">No Suppliers Found</h3>
           <p className="text-xs text-slate-400">
-            {isAdmin ? 'Register your procurement vendors and farmers to link with purchase orders.' : 'No vendors currently match your search.'}
+            {isAdmin ? 'Register your procurement vendors and farmers to link with bulk orders.' : 'No vendors currently match your search.'}
           </p>
         </div>
       ) : (

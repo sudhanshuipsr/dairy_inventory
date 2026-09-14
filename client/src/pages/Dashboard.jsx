@@ -398,14 +398,14 @@ const Dashboard = () => {
             <span className="hidden sm:inline">{autoRefresh ? 'Live (60s)' : 'Paused'}</span>
           </button>
 
-          {/* New Purchase Quick Button */}
+          {/* Bulk Order Quick Button */}
           <Link
             to="/purchases"
             className="px-3.5 py-2 bg-blue-50 hover:bg-blue-100 text-[#0B4F9C] border border-blue-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 hover:scale-102 active:scale-98 shadow-2xs"
-            title="Record Inward Stock Purchase"
+            title="Record Bulk Stock Order"
           >
             <ShoppingBag className="w-3.5 h-3.5 text-[#0B4F9C]" />
-            <span>New Purchase</span>
+            <span>Bulk Order</span>
           </Link>
 
           {/* New Sale Quick Button */}
@@ -571,7 +571,7 @@ const Dashboard = () => {
         >
           <div>
             <div className="flex items-center justify-between text-[#3f5a3f] mb-1">
-              <span className="text-xs font-bold uppercase tracking-wider">Today's Purchases</span>
+              <span className="text-xs font-bold uppercase tracking-wider">Today's Bulk Orders</span>
               <div className="w-8 h-8 rounded-xl bg-blue-50 text-[#0B4F9C] flex items-center justify-center group-hover:bg-blue-100 transition-colors">
                 <Truck className="w-4 h-4" />
               </div>
@@ -580,7 +580,7 @@ const Dashboard = () => {
               <AnimatedCounter value={todayPurchasesAmt} prefix="₹" />
             </div>
             <p className="text-[11px] text-[#3f5a3f] font-medium mt-0.5">
-              {todayPurchasesCount} inward consignments
+              {todayPurchasesCount} bulk orders
             </p>
           </div>
 
@@ -1096,7 +1096,7 @@ const Dashboard = () => {
           <div className="py-10 px-4 text-center rounded-2xl bg-[#f4f8f2] border border-dashed border-[#a0c396]/40 space-y-2">
             <PackageCheck className="w-8 h-8 text-[#2d4a2d] mx-auto" />
             <h4 className="font-bold text-sm text-[#1e3a1e]">No Products In This Category</h4>
-            <p className="text-xs text-[#3f5a3f]">Select another category or add new products in Catalog.</p>
+            <p className="text-xs text-[#3f5a3f]">Select another category or create new items in Catalog.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5 pt-1">
@@ -1249,10 +1249,10 @@ const Dashboard = () => {
           <div className="flex items-center justify-between border-b border-slate-100 pb-3">
             <div className="flex items-center gap-2">
               <Truck className="w-4 h-4 text-[#0B4F9C]" />
-              <h3 className="font-serif text-sm font-bold text-[#1e3a1e]">Recent Procurement & Inward Logs</h3>
+              <h3 className="font-serif text-sm font-bold text-[#1e3a1e]">Recent Bulk Orders</h3>
             </div>
             <Link to="/purchases" className="text-xs font-bold text-[#0B4F9C] hover:underline flex items-center gap-0.5">
-              <span>View All Purchases</span>
+              <span>View All Bulk Orders</span>
               <ChevronRight className="w-3.5 h-3.5" />
             </Link>
           </div>
@@ -1281,7 +1281,7 @@ const Dashboard = () => {
                       ₹{Number(pur.totalAmount || 0).toLocaleString()}
                     </div>
                     <span className="text-[10px] text-slate-400 font-semibold">
-                      Inward Stock
+                      Bulk Order
                     </span>
                   </div>
                 </div>

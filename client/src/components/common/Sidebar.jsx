@@ -34,7 +34,7 @@ const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
     { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard, role: 'all' },
     { label: 'Product Catalog & QR', path: '/products', icon: Package, role: 'all' },
     { label: 'Live Stock', path: '/stock', icon: Boxes, role: 'all', badge: 'Auto' },
-    { label: 'Purchases (Inward)', path: '/purchases', icon: ShoppingBag, role: 'all' },
+    { label: 'Bulk Orders', path: '/purchases', icon: ShoppingBag, role: 'all' },
     { label: 'Sales (Outward)', path: '/sales', icon: ShoppingCart, role: 'all' },
     { label: 'Expiry Batches', path: '/expiry', icon: Clock, role: 'all', badge: '3-Day' },
     // Admin Only Navigation Links

@@ -176,7 +176,7 @@ const Reports = () => {
         { label: 'Gross Revenue', val: `Rs. ${Number(summary.totalSalesAmount || 0).toLocaleString()}` },
         { label: 'COGS (Cost of Goods)', val: `Rs. ${Number(summary.totalCOGS || summary.totalCost || 0).toLocaleString()}` },
         { label: 'Gross Profit', val: `Rs. ${Number(summary.grossProfit || 0).toLocaleString()}` },
-        { label: 'Procurement Inward', val: `Rs. ${Number(summary.totalPurchasesAmount || 0).toLocaleString()}` },
+        { label: 'Bulk Orders', val: `Rs. ${Number(summary.totalPurchasesAmount || 0).toLocaleString()}` },
         { label: 'Net Profit', val: `Rs. ${Number(summary.netProfit || 0).toLocaleString()}` },
         { label: 'Profit Margin', val: `${summary.profitMarginPct || 0}%` },
       ];
@@ -421,7 +421,7 @@ const Reports = () => {
         { label: 'Gross Revenue', val: `Rs. ${Number(summary.totalSalesAmount || 0).toLocaleString()}` },
         { label: 'Total COGS (Cost)', val: `Rs. ${Number(summary.totalCOGS || summary.totalCost || 0).toLocaleString()}` },
         { label: 'Gross Profit', val: `Rs. ${Number(summary.grossProfit || 0).toLocaleString()}` },
-        { label: 'Procurement Inward', val: `Rs. ${Number(summary.totalPurchasesAmount || 0).toLocaleString()}` },
+        { label: 'Bulk Orders', val: `Rs. ${Number(summary.totalPurchasesAmount || 0).toLocaleString()}` },
         { label: 'Net Profit', val: `Rs. ${Number(summary.netProfit || 0).toLocaleString()}` },
         { label: 'Profit Margin', val: `${summary.profitMarginPct || 0}%` },
       ];
@@ -584,10 +584,10 @@ const Reports = () => {
           <button
             onClick={() => handleDownloadCsv('purchases')}
             className="px-3 py-2 bg-[#f4f8f2] hover:bg-[#ebf5eb] text-[#1e3a1e] border border-[#a0c396]/40 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
-            title="Export Purchases Inward CSV"
+            title="Export Bulk Orders CSV"
           >
             <Download className="w-3.5 h-3.5 text-[#1e3a1e]" />
-            <span>Purchases (CSV)</span>
+            <span>Bulk Orders (CSV)</span>
           </button>
 
           <button
@@ -712,7 +712,7 @@ const Reports = () => {
             ₹{Number(summary.totalCOGS || summary.totalCost || 0).toLocaleString()}
           </div>
           <span className="text-[11px] text-[#3f5a3f] font-medium">
-            ₹{Number(summary.totalPurchasesAmount || 0).toLocaleString()} inward procured
+            ₹{Number(summary.totalPurchasesAmount || 0).toLocaleString()} bulk orders
           </span>
         </div>
 

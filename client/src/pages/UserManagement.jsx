@@ -185,7 +185,7 @@ const UserManagement = () => {
           <div className="font-extrabold text-[#0B4F9C]">Enforced Role Permissions Architecture:</div>
           <p className="text-slate-600 leading-relaxed text-[11px]">
             <strong>Admin:</strong> Full system access, audit trail viewing, product catalog CRUD, staff account management, and record deletion reversals.<br />
-            <strong>Staff:</strong> Operational access only (inward purchases, retail sales, milk production logging, and expiry checking). Cannot delete records or manage accounts.
+            <strong>Staff:</strong> Operational access only (bulk orders, adding stock, retail sales, and expiry checking). Cannot delete records or manage accounts.
           </p>
         </div>
       </div>

@@ -203,7 +203,7 @@ export default function Purchases() {
   // Remove line item
   const handleRemoveLineItem = (index) => {
     if (formData.items.length <= 1) {
-      addToast('A purchase order must have at least one line item', 'warning');
+      addToast('A bulk order must have at least one item', 'warning');
       return;
     }
     setFormData((prev) => ({
@@ -245,19 +245,19 @@ export default function Purchases() {
     });
   };
 
-  // Submit Purchase Order
+  // Submit Bulk Order
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
       setSubmitting(true);
       const res = await createPurchaseApi(formData);
       if (res.data?.success) {
-        addToast(res.data.message || 'Purchase recorded & stock incremented atomically!', 'success');
+        addToast(res.data.message || 'Bulk order recorded & stock updated!', 'success');
         setIsModalOpen(false);
         fetchPurchases();
       }
     } catch (error) {
-      addToast(error.response?.data?.message || 'Failed to record purchase', 'error');
+      addToast(error.response?.data?.message || 'Failed to record bulk order', 'error');
     } finally {
       setSubmitting(false);
     }
@@ -301,10 +301,10 @@ export default function Purchases() {
         <div>
           <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
             <ShoppingBag className="w-6 h-6 text-[#0B4F9C]" />
-            <span>Procurement & Inward Purchases</span>
+            <span>Bulk Orders (Purchases)</span>
           </h1>
           <p className="text-xs text-slate-500 mt-1">
-            Record supplier consignments, multi-item purchase orders, and automatically sync live inventory.
+            Record supplier consignments, bulk purchase orders, and automatically sync live inventory.
           </p>
         </div>
 
@@ -314,7 +314,7 @@ export default function Purchases() {
             className="px-4 py-2 bg-[#0B4F9C] hover:bg-[#083D7A] text-white rounded-xl text-xs font-black shadow-md shadow-blue-500/20 transition-all hover:scale-105 active:scale-95 flex items-center gap-1.5"
           >
             <Plus className="w-4 h-4" />
-            <span>+ New Purchase Order</span>
+            <span>+ New Bulk Order</span>
           </button>
 
           <button
@@ -334,7 +334,7 @@ export default function Purchases() {
             ₹
           </div>
           <div>
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Total Inward Spent</span>
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Total Bulk Spent</span>
             <span className="text-xl sm:text-2xl font-black text-slate-900 font-mono">
               ₹{totalSpentAll.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
@@ -438,8 +438,8 @@ export default function Purchases() {
         ) : filteredPurchases.length === 0 ? (
           <div className="p-12 text-center space-y-2">
             <ShoppingBag className="w-10 h-10 text-slate-300 mx-auto" />
-            <h3 className="font-extrabold text-sm text-slate-700">No Purchases Found</h3>
-            <p className="text-xs text-slate-400">Record a new purchase order to inward stock and track inventory history.</p>
+            <h3 className="font-extrabold text-sm text-slate-700">No Bulk Orders Found</h3>
+            <p className="text-xs text-slate-400">Record a new bulk order to add stock and track inventory history.</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -603,12 +603,12 @@ export default function Purchases() {
         )}
       </div>
 
-      {/* 5. New Multi-Line Purchase Order Modal */}
+      {/* 5. New Bulk Order Modal */}
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title="Record New Purchase Order"
-        subtitle="Select supplier, add multiple product lines, and atomically increment stock in one transaction."
+        title="Record New Bulk Order"
+        subtitle="Select supplier, add product quantities, and automatically update live stock."
         icon={<ShoppingBag className="w-5 h-5 text-[#0B4F9C]" />}
         maxWidth="max-w-3xl"
       >
@@ -816,7 +816,7 @@ export default function Purchases() {
               disabled={submitting}
               className="flex-1 py-2.5 bg-[#0B4F9C] hover:bg-[#083D7A] disabled:opacity-50 text-white rounded-xl text-xs font-black shadow-md transition-colors"
             >
-              {submitting ? 'Recording Purchase...' : 'Confirm & Increment Stock'}
+              {submitting ? 'Recording Bulk Order...' : 'Confirm Bulk Order & Update Stock'}
             </button>
           </div>
         </form>
