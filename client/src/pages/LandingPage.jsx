@@ -601,6 +601,108 @@ const LandingPage = () => {
               </p>
             </div>
           </div>
+
+          {/* Outlet Location Card with Google Maps */}
+          <div className="bg-white rounded-3xl border border-[#a0c396]/40 p-6 sm:p-8 shadow-soft overflow-hidden">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+              <div className="lg:col-span-7 space-y-4">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold bg-[#ebf5eb] text-[#2d4a2d] border border-[#a0c396]/40">
+                  <Store className="w-3.5 h-3.5 text-[#2d4a2d]" />
+                  <span>Authorized Mother Dairy Outlet</span>
+                </div>
+
+                <div>
+                  <h3 className="font-serif text-2xl sm:text-3xl font-bold text-[#1e3a1e]">
+                    Rajajipuram Outlet & Booth
+                  </h3>
+                  <p className="text-xs text-[#3f5a3f] mt-1">
+                    Serving pure, fresh milk, authentic dahi, paneer, and dairy products directly from cold-chain distribution.
+                  </p>
+                </div>
+
+                <div className="space-y-3 pt-2">
+                  <div className="flex items-start gap-3 text-xs">
+                    <div className="w-8 h-8 rounded-xl bg-[#ebf5eb] text-[#1e3a1e] flex items-center justify-center shrink-0 mt-0.5">
+                      <MapPin className="w-4 h-4 text-[#2d4a2d]" />
+                    </div>
+                    <div>
+                      <span className="font-bold text-[#1e3a1e] block">Address:</span>
+                      <span className="text-[#3f5a3f] leading-relaxed">
+                        C-3383, Opposite SBI ATM, Near MIS Chauraha, Rajajipuram, Lucknow - 226017
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 text-xs">
+                    <div className="w-8 h-8 rounded-xl bg-[#ebf5eb] text-[#1e3a1e] flex items-center justify-center shrink-0">
+                      <Mail className="w-4 h-4 text-[#2d4a2d]" />
+                    </div>
+                    <div>
+                      <span className="font-bold text-[#1e3a1e] block">Email:</span>
+                      <a href="mailto:sudhanshuipsr@gmail.com" className="text-[#2d4a2d] hover:underline font-medium">
+                        sudhanshuipsr@gmail.com
+                      </a>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 text-xs">
+                    <div className="w-8 h-8 rounded-xl bg-[#ebf5eb] text-[#1e3a1e] flex items-center justify-center shrink-0">
+                      <Clock className="w-4 h-4 text-[#2d4a2d]" />
+                    </div>
+                    <div>
+                      <span className="font-bold text-[#1e3a1e] block">Timings:</span>
+                      <span className="text-[#3f5a3f]">06:00 AM – 10:00 PM (Open 7 Days a Week)</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-2 flex flex-wrap items-center gap-3">
+                  <a
+                    href="https://www.google.com/maps/place/26%C2%B050'49.3%22N+80%C2%B056'54.8%22E/@26.847028,80.9459781,1121m/data=!3m2!1e3!4b1!4m4!3m3!8m2!3d26.847028!4d80.948553?hl=en&entry=ttu&g_ep=EgoyMDI2MDkwOS4wIKXMDSoASAFQAw%3D%3D"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 bg-[#1e3a1e] hover:bg-[#2d4a2d] text-white px-5 py-2.5 rounded-2xl text-xs font-bold shadow-md shadow-[#1e3a1e]/15 transition-all hover:-translate-y-0.5"
+                  >
+                    <MapPin className="w-4 h-4 text-[#a0c396]" />
+                    <span>Open in Google Maps</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+
+                  <button
+                    onClick={() => setIsRateModalOpen(true)}
+                    className="inline-flex items-center gap-2 bg-[#ebf5eb] hover:bg-[#d8e8d8] text-[#1e3a1e] px-4 py-2.5 rounded-2xl text-xs font-bold transition-all border border-[#a0c396]/40 cursor-pointer"
+                  >
+                    <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                    <span>Rate This Outlet</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Map Preview Embed */}
+              <div className="lg:col-span-5 h-64 sm:h-72 w-full rounded-2xl overflow-hidden border border-[#a0c396]/30 shadow-xs relative bg-slate-100">
+                <iframe
+                  title="Mother Dairy Rajajipuram Outlet Location"
+                  width="100%"
+                  height="100%"
+                  frameBorder="0"
+                  scrolling="no"
+                  marginHeight="0"
+                  marginWidth="0"
+                  src="https://maps.google.com/maps?q=26.847028,80.948553&hl=en&z=17&output=embed"
+                  className="w-full h-full"
+                ></iframe>
+                <a
+                  href="https://www.google.com/maps/place/26%C2%B050'49.3%22N+80%C2%B056'54.8%22E/@26.847028,80.9459781,1121m/data=!3m2!1e3!4b1!4m4!3m3!8m2!3d26.847028!4d80.948553?hl=en&entry=ttu&g_ep=EgoyMDI2MDkwOS4wIKXMDSoASAFQAw%3D%3D"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="absolute bottom-2 right-2 bg-white/95 backdrop-blur-xs px-2.5 py-1 rounded-lg text-[10px] font-bold text-[#1e3a1e] shadow-sm border border-slate-200 flex items-center gap-1 hover:bg-white"
+                >
+                  <span>26°50'49.3"N 80°56'54.8"E</span>
+                  <ExternalLink className="w-2.5 h-2.5 text-slate-500" />
+                </a>
+              </div>
+            </div>
+          </div>
         </section>
 
       </main>
@@ -647,18 +749,32 @@ const LandingPage = () => {
 
           <div className="space-y-2">
             <h4 className="font-bold text-xs uppercase tracking-wider text-[#1e3a1e]">Outlet Contact</h4>
-            <div className="text-xs space-y-1.5">
+            <div className="text-xs space-y-2">
+              <div className="flex items-start gap-2">
+                <MapPin className="w-3.5 h-3.5 text-[#6a9c6a] shrink-0 mt-0.5" />
+                <span className="leading-relaxed">C-3383, Opposite SBI ATM, Near MIS Chauraha, Rajajipuram, Lucknow - 226017</span>
+              </div>
               <div className="flex items-center gap-2">
-                <Phone className="w-3.5 h-3.5 text-[#6a9c6a]" />
+                <Mail className="w-3.5 h-3.5 text-[#6a9c6a] shrink-0" />
+                <a href="mailto:sudhanshuipsr@gmail.com" className="hover:text-[#1e3a1e] underline underline-offset-2">
+                  sudhanshuipsr@gmail.com
+                </a>
+              </div>
+              <div className="flex items-center gap-2">
+                <Phone className="w-3.5 h-3.5 text-[#6a9c6a] shrink-0" />
                 <span>+91 1800 180 1018 (Toll Free)</span>
               </div>
-              <div className="flex items-center gap-2">
-                <Mail className="w-3.5 h-3.5 text-[#6a9c6a]" />
-                <span>support@motherdairyoutlet.com</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <MapPin className="w-3.5 h-3.5 text-[#6a9c6a]" />
-                <span>Authorized Mother Dairy Outlet Hub</span>
+              <div className="pt-1">
+                <a
+                  href="https://www.google.com/maps/place/26%C2%B050'49.3%22N+80%C2%B056'54.8%22E/@26.847028,80.9459781,1121m/data=!3m2!1e3!4b1!4m4!3m3!8m2!3d26.847028!4d80.948553?hl=en&entry=ttu&g_ep=EgoyMDI2MDkwOS4wIKXMDSoASAFQAw%3D%3D"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#ebf5eb] hover:bg-[#d8e8d8] text-[#1e3a1e] font-bold text-[11px] transition-colors shadow-2xs border border-[#a0c396]/40"
+                >
+                  <MapPin className="w-3 h-3 text-emerald-700" />
+                  <span>26°50'49.3"N 80°56'54.8"E (Maps)</span>
+                  <ExternalLink className="w-3 h-3 text-slate-500" />
+                </a>
               </div>
             </div>
           </div>

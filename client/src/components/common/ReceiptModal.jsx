@@ -57,8 +57,8 @@ const ReceiptModal = ({ isOpen, onClose, sale }) => {
         doc.setFontSize(7.5);
         doc.setTextColor(100, 116, 139);
         doc.text('Dairy Inventory & Outward Counter System', 74, 20, { align: 'center' });
-        doc.text('Sector 18 Market, New Delhi - 110001 | GSTIN: 07AAACM1234F1Z8', 74, 24, { align: 'center' });
-        doc.text('Helpline: 1800-180-1989 | support@motherdairy.com', 74, 28, { align: 'center' });
+        doc.text('C-3383, Opposite SBI ATM, Near MIS Chauraha, Rajajipuram, Lucknow - 226017', 74, 24, { align: 'center' });
+        doc.text('Email: sudhanshuipsr@gmail.com | Helpline: 1800-180-1018', 74, 28, { align: 'center' });
 
         // Divider
         doc.setDrawColor(203, 213, 225);
@@ -344,7 +344,8 @@ const ReceiptModal = ({ isOpen, onClose, sale }) => {
             <div class="center">
               <div class="brand-title">MOTHER DAIRY</div>
               <div class="brand-sub">Dairy Inventory & Outward Counter</div>
-              <div class="brand-address">Sector 18 Market, New Delhi - 110001 • Ph: 1800-180-1989</div>
+              <div class="brand-address">C-3383, Opposite SBI ATM, Near MIS Chauraha, Rajajipuram, Lucknow - 226017</div>
+              <div class="brand-address">Email: sudhanshuipsr@gmail.com • Ph: 1800-180-1018</div>
             </div>
 
             <div class="divider-thick"></div>
@@ -472,8 +473,11 @@ const ReceiptModal = ({ isOpen, onClose, sale }) => {
               <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
                 Dairy Inventory & Outward Counter
               </p>
-              <p className="text-[10px] text-slate-400 mt-0.5">
-                Sector 18 Market, New Delhi - 110001 • Ph: 1800-180-1989
+              <p className="text-[10px] text-slate-500 mt-0.5">
+                C-3383, Opposite SBI ATM, Near MIS Chauraha, Rajajipuram, Lucknow - 226017
+              </p>
+              <p className="text-[9.5px] text-slate-400">
+                Email: sudhanshuipsr@gmail.com • Ph: 1800-180-1018
               </p>
               <p className="text-[9px] text-slate-400 font-mono">GSTIN: 07AAACM1234F1Z8</p>
             </div>

@@ -127,6 +127,16 @@ const Login = () => {
               )}
             </button>
           </form>
+
+          {/* Outlet Contact Details Footer */}
+          <div className="mt-6 pt-4 border-t border-[#a0c396]/20 text-center space-y-1">
+            <p className="text-[11px] font-medium text-[#3f5a3f]">
+              Mother Dairy Outlet • C-3383, Opposite SBI ATM, Near MIS Chauraha
+            </p>
+            <p className="text-[10px] text-slate-400">
+              Support & Inquiries: <a href="mailto:sudhanshuipsr@gmail.com" className="text-[#2d4a2d] font-semibold hover:underline">sudhanshuipsr@gmail.com</a>
+            </p>
+          </div>
         </div>
       </motion.div>
     </div>
