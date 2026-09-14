@@ -30,7 +30,10 @@ import {
   FileText,
   Tag,
   Sparkles,
-  ArrowRight
+  ArrowRight,
+  X,
+  ChevronDown,
+  SlidersHorizontal
 } from 'lucide-react';
 import { DAIRY_CATEGORIES, getCategoryMeta } from '../utils/categories';
 
@@ -45,6 +48,9 @@ const StockView = () => {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('All');
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [stockStatusFilter, setStockStatusFilter] = useState('all'); // 'all' | 'in-stock' | 'low' | 'out'
+  const [sortBy, setSortBy] = useState('name-asc');
   
   const [searchParams, setSearchParams] = useSearchParams();
   const lowStockFilter = searchParams.get('lowStockOnly') === 'true';
@@ -232,19 +238,64 @@ const StockView = () => {
     return DAIRY_CATEGORIES.filter(c => c.id === 'All' || presentCats.has(c.id));
   }, [stocks]);
 
-  // Filtered in-memory for immediate UI search
-  const filteredStocks = (stocks || []).filter((s) => {
-    const product = s?.productId || s?.product;
-    if (!product) return false;
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (categoryFilter !== 'All') count++;
+    if (stockStatusFilter !== 'all' || lowStockFilter) count++;
+    if (sortBy !== 'name-asc') count++;
+    return count;
+  }, [categoryFilter, stockStatusFilter, lowStockFilter, sortBy]);
 
-    const matchesCategory = categoryFilter === 'All' || product.category === categoryFilter;
-    const matchesSearch = 
-      (product.name || '').toLowerCase().includes((searchQuery || '').toLowerCase()) ||
-      (product.qrCode || '').toLowerCase().includes((searchQuery || '').toLowerCase()) ||
-      (product.category || '').toLowerCase().includes((searchQuery || '').toLowerCase());
+  // Filtered and sorted in-memory for immediate UI search
+  const filteredStocks = useMemo(() => {
+    let result = (stocks || []).filter((s) => {
+      const product = s?.productId || s?.product;
+      if (!product) return false;
 
-    return matchesCategory && matchesSearch;
-  });
+      const matchesCategory = categoryFilter === 'All' || product.category === categoryFilter;
+      
+      const q = (searchQuery || '').trim().toLowerCase();
+      const matchesSearch = !q ||
+        (product.name || '').toLowerCase().includes(q) ||
+        (product.qrCode || '').toLowerCase().includes(q) ||
+        (product.barcode || '').toLowerCase().includes(q) ||
+        (product.category || '').toLowerCase().includes(q);
+
+      const qty = Number(s.currentQuantity || 0);
+      const threshold = Number(s.reorderThreshold || product.reorderThreshold || 20);
+
+      let matchesStatus = true;
+      if (stockStatusFilter === 'low' || lowStockFilter) {
+        matchesStatus = qty > 0 && qty <= threshold;
+      } else if (stockStatusFilter === 'out') {
+        matchesStatus = qty <= 0;
+      } else if (stockStatusFilter === 'in-stock') {
+        matchesStatus = qty > 0;
+      }
+
+      return matchesCategory && matchesSearch && matchesStatus;
+    });
+
+    // Sorting
+    result.sort((a, b) => {
+      const prodA = a?.productId || a?.product || {};
+      const prodB = b?.productId || b?.product || {};
+      const qtyA = Number(a.currentQuantity || 0);
+      const qtyB = Number(b.currentQuantity || 0);
+      const priceA = Number(prodA.unitPrice || 0);
+      const priceB = Number(prodB.unitPrice || 0);
+
+      if (sortBy === 'name-asc') return (prodA.name || '').localeCompare(prodB.name || '');
+      if (sortBy === 'name-desc') return (prodB.name || '').localeCompare(prodA.name || '');
+      if (sortBy === 'stock-desc') return qtyB - qtyA;
+      if (sortBy === 'stock-asc') return qtyA - qtyB;
+      if (sortBy === 'price-desc') return priceB - priceA;
+      if (sortBy === 'price-asc') return priceA - priceB;
+      return 0;
+    });
+
+    return result;
+  }, [stocks, categoryFilter, searchQuery, stockStatusFilter, lowStockFilter, sortBy]);
 
   return (
     <div className="space-y-6">
@@ -317,37 +368,153 @@ const StockView = () => {
       )}
 
       {/* 3. Search, Category Filter & Low Stock Banner */}
-      <div className="space-y-3">
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+      <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs space-y-3">
+        {/* Row 1: Dedicated Search Input (Takes full width, cannot be squished) + Filter Button */}
+        <div className="flex items-center gap-2 sm:gap-3">
+          <div className="relative flex-1 min-w-[180px]">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
-              placeholder="Search by product name, SKU, or category..."
+              placeholder="Search by product name, SKU, QR code, or category..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0B4F9C] shadow-2xs"
+              className="w-full pl-10 pr-9 py-2.5 bg-slate-50/75 hover:bg-slate-50 focus:bg-white border border-slate-200 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0B4F9C] transition-all"
             />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-200 transition-colors cursor-pointer"
+                title="Clear search"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
 
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
-            {displayedCategories.map((cat) => (
-              <button
-                key={cat.id}
-                onClick={() => setCategoryFilter(cat.id)}
-                className={`px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 ${
-                  categoryFilter === cat.id
-                    ? 'bg-[#0B4F9C] text-white shadow-xs'
-                    : 'bg-white hover:bg-slate-100 text-slate-600 border border-slate-200'
-                }`}
-              >
-                <span>{cat.icon}</span>
-                <span>{cat.label}</span>
-              </button>
-            ))}
-          </div>
+          {/* Dedicated Filter Button */}
+          <button
+            type="button"
+            onClick={() => setIsFilterOpen(!isFilterOpen)}
+            className={`px-3.5 sm:px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 sm:gap-2 shrink-0 cursor-pointer shadow-2xs ${
+              isFilterOpen || activeFiltersCount > 0
+                ? 'bg-[#0B4F9C] text-white border border-[#0B4F9C] shadow-sm'
+                : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+            }`}
+            title="Filter and sort live stock"
+          >
+            <Filter className="w-3.5 h-3.5" />
+            <span>Filters</span>
+            {activeFiltersCount > 0 && (
+              <span className="w-5 h-5 rounded-full bg-white text-[#0B4F9C] text-[10px] font-black flex items-center justify-center shadow-2xs">
+                {activeFiltersCount}
+              </span>
+            )}
+            <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${isFilterOpen ? 'rotate-180' : ''}`} />
+          </button>
         </div>
 
+        {/* Row 2: Expandable Filter Panel */}
+        {isFilterOpen && (
+          <div className="p-3.5 sm:p-4 bg-slate-50/90 border border-slate-200 rounded-xl space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                <SlidersHorizontal className="w-3.5 h-3.5 text-[#0B4F9C]" />
+                <span>Filter & Sort Stock Options</span>
+              </span>
+              {activeFiltersCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCategoryFilter('All');
+                    setStockStatusFilter('all');
+                    setSortBy('name-asc');
+                    setSearchParams({});
+                  }}
+                  className="text-xs text-rose-600 hover:text-rose-700 font-bold hover:underline cursor-pointer"
+                >
+                  Reset All Filters
+                </button>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {/* Category selector */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 mb-1">Product Category</label>
+                <select
+                  value={categoryFilter}
+                  onChange={(e) => setCategoryFilter(e.target.value)}
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0B4F9C]"
+                >
+                  {displayedCategories.map(c => (
+                    <option key={c.id} value={c.id}>
+                      {c.icon} {c.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Stock Status selector */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 mb-1">Stock Level Status</label>
+                <select
+                  value={stockStatusFilter}
+                  onChange={(e) => {
+                    setStockStatusFilter(e.target.value);
+                    if (e.target.value !== 'low' && lowStockFilter) {
+                      setSearchParams({});
+                    }
+                  }}
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0B4F9C]"
+                >
+                  <option value="all">All Items</option>
+                  <option value="in-stock">In Stock (&gt; 0)</option>
+                  <option value="low">Low Stock (≤ Reorder Alert)</option>
+                  <option value="out">Out of Stock (0)</option>
+                </select>
+              </div>
+
+              {/* Sort Order selector */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 mb-1">Sort By</label>
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0B4F9C]"
+                >
+                  <option value="name-asc">Product Name (A → Z)</option>
+                  <option value="name-desc">Product Name (Z → A)</option>
+                  <option value="stock-desc">On-Hand Stock (Highest First)</option>
+                  <option value="stock-asc">On-Hand Stock (Lowest First)</option>
+                  <option value="price-desc">Selling Price (High → Low)</option>
+                  <option value="price-asc">Selling Price (Low → High)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Row 3: Horizontal Category Quick Pills (Placed in their OWN row so they never squeeze or break the search input!) */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar pt-1">
+          {displayedCategories.map((cat) => (
+            <button
+              key={cat.id}
+              type="button"
+              onClick={() => setCategoryFilter(cat.id)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
+                categoryFilter === cat.id
+                  ? 'bg-[#0B4F9C] text-white shadow-xs font-black'
+                  : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200/90'
+              }`}
+            >
+              <span>{cat.icon}</span>
+              <span>{cat.label}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Active Low Stock Banner */}
         {lowStockFilter && (
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-center justify-between">
             <div className="flex items-center gap-2 text-amber-800 text-xs font-bold">
@@ -355,8 +522,9 @@ const StockView = () => {
               <span>Filtering by Low Stock Items Only</span>
             </div>
             <button
+              type="button"
               onClick={() => setSearchParams({})}
-              className="text-xs text-amber-900 underline font-semibold hover:text-amber-700"
+              className="text-xs text-amber-900 underline font-semibold hover:text-amber-700 cursor-pointer"
             >
               Clear Filter
             </button>
